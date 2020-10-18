@@ -1,0 +1,26 @@
+name: seq2seq-time
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python==3.7
+  - pip
+  - awscli
+  - ipykernel
+  - tqdm
+  - xarray
+  - pandas
+  - pytorch
+  - torchvision
+  - cudatoolkit==10.2
+  - black
+  - pylama
+  - mypy
+  - pytest
+  - numpy
+  - matplotlib
+  - scikit-learn
+  - pytorch-lightning
+  - yapf
+  - ipywidgets
+prefix: /home/wassname/anaconda/envs/seq2seq-time

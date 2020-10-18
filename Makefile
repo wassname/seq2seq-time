@@ -51,7 +51,7 @@ lint:
 ## Set up python interpreter environment
 create_environment:
 	@echo ">>> Detected conda, creating conda environment."
-	conda create --name $(PROJECT_NAME) python=3
+	conda create --name $(PROJECT_NAME) python=3.7
 	@echo ">>> New conda env created. Activate with:\nsource activate $(PROJECT_NAME)"
 
 ## Test python environment is setup correctly

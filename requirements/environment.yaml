@@ -11,5 +11,5 @@ dependencies:
   - awscli
   - pip:
     # local package
-    - -e .
+    # - -e .
 
