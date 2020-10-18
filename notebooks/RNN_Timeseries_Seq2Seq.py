@@ -202,6 +202,8 @@ plt.legend()
 df_norm
 
 
+# These are the columns that we wont know in the future
+# We need to blank them out in x_future
 columns_blank=['visibility',
        'windBearing', 'temperature', 'dewPoint', 'pressure',
        'apparentTemperature', 'windSpeed', 'humidity']
@@ -216,10 +218,6 @@ ds_test = Seq2SeqDataSet(df_test,
                          columns_blank=columns_blank)
 print(ds_train)
 print(ds_test)
-
-# %%timeit
-for i in range(100):
-    ds_train[i]
 
 # we can treat it like an array
 ds_train[0]
@@ -426,10 +424,8 @@ training_loop(ds_train, ds_test, model, epochs=8, bs=batch_size)
 # ## Predict
 #
 
-# TODO get working
-output_scaler = scaler.transformers[-4][1]
-ds_preds = predict(model, ds_test, batch_size*6, device=device, scaler=output_scaler)
-
+ds_preds = predict(model, ds_test, batch_size, device=device, scaler=output_scaler)
+ds_preds
 
 
 # +
@@ -504,16 +500,16 @@ d.plot.scatter('t_ahead_hours', 'likelihood')
 
 
 # Make a plot of the NLL over time. Does this solution get worse with time?
-# this is hard because we need to take the mean over t_ahead
-# then group by t_source
-d = ds_preds.mean('t_ahead').groupby('t_source').mean()
-# And even then it's clearer with smoothing
-d.plot.scatter('t_source', 'nll')
+d = ds_preds.mean('t_ahead').groupby('t_source').mean().plot.scatter('t_source', 'nll')
 plt.xticks(rotation=45)
 plt.title('NLL over time (lower is better)')
 1
 
 # A scatter plot is easy with xarray
 ds_preds.plot.scatter('y_true', 'y_pred', s=.01)
+
+
+
+
 
 

@@ -12,6 +12,7 @@ def assert_no_objects(df):
         assert dtype.name!='object', f'all objects should be pd.categories. {name} is not'
 
 
+
 class Seq2SeqDataSet(torch.utils.data.Dataset):
     """
     Takes in dataframe and returns sequences through time.
@@ -26,37 +27,34 @@ class Seq2SeqDataSet(torch.utils.data.Dataset):
         - columns_blank: The columns we will blank, in the future
         """
         super().__init__()
-        # TODO auto categorical columns
-        # TODO specify blank future columns
         assert isinstance(df.index, pd.DatetimeIndex), 'should have a datetime index'
         assert df.index.freq is not None, 'should have freq'
-        # assert_normalized(df)
         assert_no_objects(df)
 
-        # Use numpy instead of pandas, for speed
-        self.x = df.drop(columns=columns_target).copy().values
-        self.y = df[columns_target].copy().values
-        self.t = df.index.copy()
-        self.columns = list(df.columns)
-        self.icol_blank = [df.drop(columns=columns_target).columns.tolist().index(n) for n in columns_blank]
+        self.df = df
 
         self.window_past = window_past
         self.window_future = window_future
         self.columns_target = columns_target
 
+        # For speed
+        self._icol_blank = [df.drop(columns = columns_target).columns.tolist().index(n) for n in columns_blank]
+        self._x = self.df.drop(columns = self.columns_target).values
+        self._y = self.df[columns_target].values
+
     def get_components(self, i):
         """Get past and future rows."""
-        x = self.x[i : i + (self.window_past + self.window_future)].copy()
-        y = self.y[i:i + (self.window_past + self.window_future)].copy()
-        t = self.t[i:i + (self.window_past + self.window_future)].copy()
-        t = t.astype(int) * 1e-9 / 60 / 60 / 24  # days
-        t = t.values
-        now = t[self.window_past]
+        x = self._x[i : i + (self.window_past + self.window_future)].copy()
+        y = self._y[i:i + (self.window_past + self.window_future)].copy()        
+        time = self.df.index.values[i:i + (self.window_past + self.window_future)].copy()
+
+        days = time.astype(int) * 1e-9 / 60 / 60 / 24  # days
+        now = days[self.window_past]
         
         # Add a features: relative hours since present time, is future
-        tstp = (t - now)[:, None]
-        is_past = tstp < 0
-        x = np.concatenate([x, tstp, is_past], -1)
+        days_since_present = (days - now)[:, None]
+        is_past = days_since_present < 0
+        x = np.concatenate([x, days_since_present, is_past], -1)
         
         # Split into future and past
         x_past = x[:self.window_past]
@@ -65,7 +63,7 @@ class Seq2SeqDataSet(torch.utils.data.Dataset):
         y_future = y[self.window_past:]
 
         # Stop it cheating by using future weather measurements
-        x_future[:, self.icol_blank] = 0
+        x_future[:, self._icol_blank] = 0
         return x_past, y_past, x_future, y_future
 
 
@@ -83,10 +81,10 @@ class Seq2SeqDataSet(torch.utils.data.Dataset):
         """
         Output pandas dataframes for display purposes.
         """
-        x_cols = list(self.columns)[1:] + ['tsp_days', 'is_past']
+        x_cols = list(self.df.drop(columns=self.columns_target).columns) + ['tsp_days', 'is_past']
         x_past, y_past, x_future, y_future = self.get_components(i)
-        t_past = self.t[i:i+self.window_past]
-        t_future = self.t[i+self.window_past:i+self.window_past + self.window_future]
+        t_past = self.df.index[i:i+self.window_past]
+        t_future = self.df.index[i+self.window_past:i+self.window_past + self.window_future]
         x_past = pd.DataFrame(x_past, columns=x_cols, index=t_past)
         x_future = pd.DataFrame(x_future, columns=x_cols, index=t_future)
         y_past = pd.DataFrame(y_past, columns=self.columns_target, index=t_past)
@@ -94,7 +92,8 @@ class Seq2SeqDataSet(torch.utils.data.Dataset):
         return x_past, y_past, x_future, y_future
         
     def __len__(self):
-        return len(self.x) - (self.window_past + self.window_future)
+        return len(self._x) - (self.window_past + self.window_future)
     
     def __repr__(self):
-        return f'<{type(self).__name__}(shape={self.x.shape}, times={self.t[0]} to {self.t[1]} at {self.t.freq.freqstr})>'
+        t = self.df.index
+        return f'<{type(self).__name__}(shape={self.df.shape}, times={t[0]} to {t[1]} at {t.freq.freqstr})>'

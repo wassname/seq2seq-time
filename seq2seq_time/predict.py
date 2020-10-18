@@ -17,7 +17,7 @@ def predict(model, ds_test, batch_size, device='cpu', scaler=None):
     It's hard to use pandas for data with virtual dimensions so we will use xarray. Xarray has an interface similar to pandas but also allows coordinates which are virtual dimensions.
     """
     load_test = torch.utils.data.dataloader.DataLoader(ds_test, batch_size=batch_size)
-    freq = ds_test.t.freq
+    freq = ds_test.df.index.freq
     xrs = []
     for i, batch in enumerate(tqdm(load_test, desc='predict')):
         model.eval()
@@ -35,7 +35,7 @@ def predict(model, ds_test, batch_size, device='cpu', scaler=None):
 
         # Make an xarray.Dataset for the data
         bs = y_future.shape[0]
-        t_source = ds_test.t[i:i+bs].values
+        t_source = ds_test.df.index[i:i+bs].values
         t_ahead = pd.timedelta_range(0, periods=ds_test.window_future, freq=freq).values
         t_behind = pd.timedelta_range(end=-pd.Timedelta(freq), periods=ds_test.window_past, freq=freq)
         xr_out = xr.Dataset(
