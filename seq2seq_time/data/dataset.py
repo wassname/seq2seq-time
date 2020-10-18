@@ -119,18 +119,12 @@ class Seq2SeqDataSets(torch.utils.data.Dataset):
         raise IndexError
 
     def get_rows(self, i):
-        """
-        Output pandas dataframes for display purposes.
-        """
-        x_cols = list(self.df.drop(columns=self.columns_target).columns) + ['tsp_days', 'is_past']
-        x_past, y_past, x_future, y_future = self.get_components(i)
-        t_past = self.df.index[i:i+self.window_past]
-        t_future = self.df.index[i+self.window_past:i+self.window_past + self.window_future]
-        x_past = pd.DataFrame(x_past, columns=x_cols, index=t_past)
-        x_future = pd.DataFrame(x_future, columns=x_cols, index=t_future)
-        y_past = pd.DataFrame(y_past, columns=self.columns_target, index=t_past)
-        y_future = pd.DataFrame(y_future, columns=self.columns_target, index=t_future)
-        return x_past, y_past, x_future, y_future
+        l = 0
+        for d in self.datasets:
+            l += len(d)
+            if i < l:
+                return d.get_rows(i)
+        raise IndexError
 
     def __len__(self):
         l = 0

@@ -62,11 +62,11 @@ from tqdm.auto import tqdm
 import pytorch_lightning as pl
 # -
 
-from seq2seq_time.data.dataset import Seq2SeqDataSet
+from seq2seq_time.data.dataset import Seq2SeqDataSet, Seq2SeqDataSets
 from seq2seq_time.predict import predict
 
 import logging, sys
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+# logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
 # ## Parameters
 
@@ -153,13 +153,18 @@ def get_smartmeter_df(indir=Path('../data/raw/smart-meters-in-london'), max_file
 dfs = get_smartmeter_df()
 
 # Just get the first one for now
-df = next(iter(dfs))
+dfs = list(dfs)
 
 # df = df.resample(freq).first().dropna() # Where empty we will backfill, this will respect causality, and mostly maintain the mean
 
-df = df.tail(int(max_rows)).copy() # Just use last X rows
-df
+# df = df.tail(int(max_rows)).copy() # Just use last X rows
+# df = pd.concat(dfs, 0)
+df = dfs[0]
 # -
+
+
+
+
 
 df.describe()
 
@@ -223,7 +228,7 @@ print(ds_test)
 # we can treat it like an array
 ds_train[0]
 len(ds_train)
-ds_train[0][2][-2]
+ds_train[0]
 
 # +
 # We can get rows
@@ -247,7 +252,7 @@ x_future.tail()
 
 # +
 
-class Seq2SeqNet(nn.Module):
+class Seq2SeqLSTMDecoder(nn.Module):
     def __init__(self, input_size, input_size_decoder, output_size, hidden_size=32, lstm_layers=2, lstm_dropout=0, _min_std = 0.05):
         super().__init__()
         self._min_std = _min_std
@@ -273,12 +278,8 @@ class Seq2SeqNet(nn.Module):
         x = torch.cat([context_x, context_y], -1)
         _, (h_out, cell) = self.encoder(x)
         
-        ## Shape
-        # hidden = [batch size, n layers * n directions, hid dim]
-        # cell = [batch size, n layers * n directions, hid dim]
         # output = [batch size, seq len, hid dim * n directions]
         outputs, (_, _) = self.decoder(target_x, (h_out, cell))
-        
         
         # outputs: [B, T, num_direction * H]
         mean = self.mean(outputs)
@@ -291,6 +292,45 @@ class Seq2SeqNet(nn.Module):
 
 
 # -
+# ## Lightning
+
+# +
+import pytorch_lightning as pl
+
+class PL_Seq2Seq(pl.LightningModule):
+    def __init__(self, **hparams):
+        super().__init__()
+        self._model = Seq2SeqLSTMDecoder(**hparams)
+
+    def forward(self, x_past, y_past, x_future, y_future=None):
+        """Eval/Predict"""
+        y_dist = self._model(x_past, y_past, x_future)
+        return y_dist
+
+    def training_step(self, batch, batch_idx):
+        x_past, y_past, x_future, y_future = batch
+        y_dist = self.forward(*batch)
+        loss = -y_dist.log_prob(y_future).mean()
+        self.log_dict({'loss/train':loss})
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        x_past, y_past, x_future, y_future = batch
+        y_dist = self.forward(*batch)
+        loss = -y_dist.log_prob(y_future).mean()
+        self.log_dict({'loss/val':loss})
+        return loss
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=1e-4)
+
+
+
+# -
+
+from torch.utils.data import DataLoader, random_split
+from pytorch_lightning.loggers import CSVLogger
+from pl_bolts.callbacks import PrintTableMetricsCallback
 
 
 
@@ -298,132 +338,33 @@ class Seq2SeqNet(nn.Module):
 input_size = x_past.shape[-1]
 output_size = y_future.shape[-1]
 
-model = Seq2SeqNet(input_size, input_size, output_size,
-                   hidden_size=32, 
-                   lstm_layers=2, 
-                   lstm_dropout=0).to(device)
-model
+model = PL_Seq2Seq(input_size=input_size,
+                   input_size_decoder=input_size,
+                   output_size=output_size,
+                   hidden_size=16,
+                   lstm_layers=1,
+                   lstm_dropout=0.5).to(device)
+
+logger = CSVLogger("logs", name="seq2seq")
+trainer = pl.Trainer(gpus=1,
+                     logger=logger)
+dl_train = DataLoader(ds_train,
+                      batch_size=batch_size,
+                      shuffle=True,
+                      num_workers=4)
+dl_test = DataLoader(ds_test, batch_size=batch_size, num_workers=4)
+trainer.fit(model, dl_train, dl_test)
 # -
-# Init the optimiser
-optimizer = optim.Adam(model.parameters(), lr=1e-3)
-
-# +
-
-past_x = torch.rand((batch_size, window_past, input_size)).to(device)
-future_x = torch.rand((batch_size, window_future, input_size)).to(device)
-past_y = torch.rand((batch_size, window_past, output_size)).to(device)
-future_y = torch.rand((batch_size, window_future, output_size)).to(device)
-output = model(past_x, past_y, future_x, future_y)  
-print(output)
-
-from torchsummaryX import summary
-summary(model, past_x, past_y, future_x, future_y )
-1
-
-
-# -
-
-# ## Training
-
-# +
-def train_epoch(ds, model, bs=128):
-    model.train()
-
-    training_loss = []
-
-    # Put data into a torch loader
-    load_train = torch.utils.data.dataloader.DataLoader(
-        ds,
-        batch_size=bs,
-        pin_memory=False,
-        num_workers=num_workers,
-        shuffle=True,
-    )
-
-    for batch in tqdm(load_train, leave=False, desc='train'):
-        # Send data to gpu
-        x_past, y_past, x_future, y_future = [d.to(device) for d in batch]
-
-        # Discard previous gradients
-        optimizer.zero_grad()
-        
-        # Run model
-        y_dist = model(x_past, y_past, x_future, y_future)
-        
-        # Get loss, it's Negative Log Likelihood
-        loss = -y_dist.log_prob(y_future).mean()
-
-        # Backprop
-        loss.backward()
-        optimizer.step()
-
-        # Record stats
-        training_loss.append(loss.item())
-
-    return np.mean(training_loss)
-
-
-def test_epoch(ds, model, bs=512):
-    model.eval()
-
-    test_loss = []
-    load_test = torch.utils.data.dataloader.DataLoader(ds,
-                                                       batch_size=bs,
-                                                       pin_memory=False,
-                                                       num_workers=num_workers)
-    for batch in tqdm(load_test, leave=False, desc='test'):
-        # Send data to gpu
-        x_past, y_past, x_future, y_future = [d.to(device) for d in batch]
-        with torch.no_grad():
-            # Run model
-            y_dist = model(x_past, y_past, x_future, y_future)
-            # Get loss, it's Negative Log Likelihood
-            loss = -y_dist.log_prob(y_future).mean()
-
-        test_loss.append(loss.item())
-
-    return np.mean(test_loss)
-
-
-def training_loop(ds_train, ds_test, model, epochs=1, bs=128):
-    all_losses = []
-    try:
-        test_loss = test_epoch(ds_test, model)
-        print(f"Start: Test Loss = {test_loss:.2f}")
-        for epoch in tqdm(range(epochs), desc='epochs'):
-            loss = train_epoch(ds_train, model, bs=bs)
-            print(f"Epoch {epoch+1}/{epochs}: Training Loss = {loss:.2f}")
-
-            test_loss = test_epoch(ds_test, model)
-            print(f"Epoch {epoch+1}/{epochs}: Test Loss = {test_loss:.2f}")
-            print("-" * 50)
-
-            all_losses.append([loss, test_loss])
-
-    except KeyboardInterrupt:
-        # This lets you stop manually. and still get the results
-        pass
-
-    # Visualising the results
-    all_losses = np.array(all_losses)
-    plt.plot(all_losses[:, 0], label="Training")
-    plt.plot(all_losses[:, 1], label="Test")
-    plt.title("Loss")
-    plt.legend()
-
-    return all_losses
-
-
-# -
-
-# this might take 1 minute per epoch on a gpu
-training_loop(ds_train, ds_test, model, epochs=8, bs=batch_size)
-1
+df_hist = pd.read_csv(trainer.logger.experiment.metrics_file_path)
+df_hist['epoch'] = df_hist['epoch'].ffill()
+df_histe = df_hist.set_index('epoch').groupby('epoch').mean()
+df_histe[['loss/train', 'loss/val']].plot()
+df_histe
 
 # ## Predict
 #
 
-ds_preds = predict(model, ds_test, batch_size, device=device, scaler=output_scaler)
+ds_preds = predict(model.to(device), ds_test, batch_size, device=device, scaler=output_scaler)
 ds_preds
 
 
@@ -441,6 +382,12 @@ def plot_prediction(ds_preds, i):
     s = d.y_pred_std
     yt = d.y_true
     now = d.t_source.squeeze()
+    
+    
+    plt.figure(figsize=(12, 4))
+    
+    plt.scatter(xf, yt, label='true', c='k', s=6)
+    ylim = plt.ylim()
 
     # plot prediction
     plt.fill_between(xf, yp-2*s, yp+2*s, alpha=0.25,
@@ -456,10 +403,10 @@ def plot_prediction(ds_preds, i):
         c='k',
         s=6
     )
-    plt.scatter(xf, yt, label='true', c='k', s=6)
     
     # plot a red line for now
     plt.vlines(x=now, ymin=0, ymax=1, label='now', color='r')
+    plt.ylim(*ylim)
 
     now=pd.Timestamp(now.values)
     plt.title(f'Prediction NLL={d.nll.mean().item():2.2g}')
