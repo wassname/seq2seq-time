@@ -69,7 +69,7 @@ test:
 # Export project requirements in multiple formats
 doc_reqs:
 	conda env export --no-builds --from-history --name $(PROJECT_NAME) > requirements/environment.min.yaml
-	conda env export  --name $(PROJECT_NAME) > requirements/environment.yaml
+	conda env export  --name $(PROJECT_NAME) > requirements/environment.max.yaml
 	$(PYTHON_INTERPRETER) -m pip freeze > requirements/requirements.txt --name
 
 #################################################################################

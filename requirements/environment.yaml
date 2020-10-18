@@ -1,0 +1,15 @@
+name: seq2seq-time
+channels:
+  - pytorch
+  - conda-forge
+  - main
+  - defaults
+dependencies:
+  - python=3.7
+  - pip
+  # external requirements
+  - awscli
+  - pip:
+    # local package
+    - -e .
+
