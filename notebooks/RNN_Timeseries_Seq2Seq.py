@@ -29,7 +29,8 @@
 
 #
 # - [ ] TODO mike autocorrelation baseline
-# - [ ] TODO mike acorn data
+# - [x] TODO mike acorn data
+# - [ ] TODO mike handle multiple houses. Multiindex
 
 # OPTIONAL: Load the "autoreload" extension so that code can change. But blacklist large modules
 # %load_ext autoreload
@@ -88,15 +89,13 @@ max_rows = 1e5
 
 # +
 
-def get_smartmeter_df(indir=Path('../data/raw/smart-meters-in-london')):
+def get_smartmeter_df(indir=Path('../data/raw/smart-meters-in-london'), max_files=1):
     """
     Data loading and cleanding is always messy, so understand this code is optional.
     """
     
     # Load csv files
-    csv_files = sorted((indir/'halfhourly_dataset').glob('*.csv'))[:1]
-    
-#     import pdb; pdb.set_trace() # you can use debugging in jupyter to interact with variables inside a function
+    csv_files = sorted((indir/'halfhourly_dataset').glob('*.csv'))[:max_files]
     
     # concatendate them
     df = pd.concat([pd.read_csv(f, parse_dates=[1], na_values=['Null']) for f in csv_files])
@@ -105,56 +104,56 @@ def get_smartmeter_df(indir=Path('../data/raw/smart-meters-in-london')):
     df_households = pd.read_csv(indir/'informations_households.csv')
     df_households = df_households[['LCLid', 'stdorToU', 'Acorn_grouped']]
     df = pd.merge(df, df_households, on='LCLid')
-
-    # Take the mean over all houses
-    name, df = next(iter(df.groupby('LCLid')))
+    
     df = df.set_index('tstp')
-    print(df)
-
-    # Load weather data
-    df_weather = pd.read_csv(indir/'weather_hourly_darksky.csv', parse_dates=[3])
-    use_cols = ['visibility', 'windBearing', 'temperature', 'time', 'dewPoint',
-           'pressure', 'apparentTemperature', 'windSpeed', 
-           'humidity']
-    df_weather = df_weather[use_cols].set_index('time')
-    df_weather = df_weather.resample(freq).first().ffill()  # Resample to match energy data    
-
-    # Join weather and energy data
-    df = pd.concat([df, df_weather], 1).dropna()    
     
-    # Also find bank holidays
-    df_hols = pd.read_csv(indir/'uk_bank_holidays.csv', parse_dates=[0])
-    holidays = set(df_hols['Bank holidays'].dt.round('D'))  
-
+    # Drop nan and 0's
+    df = df[df['energy(kWh/hh)']!=0]
+    df = df.dropna()
+    
+    # Add time features 
     time = df.index.to_series()
-    def is_holiday(dt):
-        return dt.floor('D') in holidays
-    df['holiday'] = time.apply(is_holiday).astype(int)
-    
-    # TODO pd.read_csv('../data/raw/smart-meters-in-london/acorn_details.csv', engine='python')
-
-
-    # Add time features    
     df["month"] = time.dt.month
     df['day'] = time.dt.day
     df['week'] = time.dt.week
     df['hour'] = time.dt.hour
     df['minute'] = time.dt.minute
     df['dayofweek'] = time.dt.dayofweek
-
-    # Drop nan and 0's
-    df = df[df['energy(kWh/hh)']!=0]
-    df = df.dropna()
-
-    # sort by time
-    df = df.sort_index()
     
-    return df
+    # Load weather data
+    df_weather = pd.read_csv(indir/'weather_hourly_darksky.csv', parse_dates=[3])
+    use_cols = ['visibility', 'windBearing', 'temperature', 'time', 'dewPoint',
+           'pressure', 'apparentTemperature', 'windSpeed', 
+           'humidity']
+    df_weather = df_weather[use_cols].set_index('time')
+    df_weather = df_weather.resample(freq).first().ffill()  # Resample to match energy data   
+    
+    # Join weather and energy data
+    df = pd.merge(df, df_weather, how='inner', left_index=True, right_index=True, sort=True)
+    
+    # Holidays
+    df_hols = pd.read_csv(indir/'uk_bank_holidays.csv', parse_dates=[0])
+    holidays = set(df_hols['Bank holidays'].dt.round('D'))  
+    def is_holiday(dt):
+        return dt in holidays
+    days = df.index.floor('D')
+    holiday_mapping = days.unique().to_series().apply(is_holiday).astype(int).to_dict()
+    df['holiday'] = days.to_series().map(holiday_mapping).values
+
+    # Loop over houses
+    for name, df_h in df.groupby('LCLid'):
+
+        yield df_h
+
+
 # -
 # Our dataset is the london smartmeter data. But at half hour intervals
 
 # +
-df = get_smartmeter_df()
+dfs = get_smartmeter_df()
+
+# Just get the first one for now
+df = next(iter(dfs))
 
 # df = df.resample(freq).first().dropna() # Where empty we will backfill, this will respect causality, and mostly maintain the mean
 
@@ -181,7 +180,7 @@ df_norm = scaler.fit_transform(df)
 df_norm
 # -
 
-output_scaler = next(filter(lambda r:r[0][0] in columns_target, mapper4.features))[-1]
+output_scaler = next(filter(lambda r:r[0][0] in columns_target, scaler.features))[-1]
 output_scaler
 
 # # Resample
@@ -201,6 +200,8 @@ plt.legend()
 # -
 df_norm
 
+
+# ### Dataset
 
 # These are the columns that we wont know in the future
 # We need to blank them out in x_future
@@ -318,13 +319,11 @@ print(output)
 from torchsummaryX import summary
 summary(model, past_x, past_y, future_x, future_y )
 1
+
+
 # -
 
 # ## Training
-
-
-
-
 
 # +
 def train_epoch(ds, model, bs=128):
@@ -481,10 +480,7 @@ plot_prediction(ds_preds, 48) # 12 hours later
 
 
 # +
-d = ds_preds.mean('t_source') # Mean over all predictions
-
-# Plot with xarray, it has a pandas like interface
-d.plot.scatter('t_ahead_hours', 'nll')
+ds_preds.mean('t_source').plot.scatter('t_ahead_hours', 'nll') # Mean over all predictions
 
 # Tidy the graph
 n = len(ds_preds.t_source)
@@ -492,10 +488,6 @@ plt.ylabel('Negative Log Likelihood (lower is better)')
 plt.xlabel('Hours ahead')
 plt.title(f'NLL vs time (no. samples={n})')
 # -
-
-d = ds_preds.mean('t_source') # Mean over all predictions
-d['likelihood'] = np.exp(-d.nll) # get likelihood, after taking mean in log domain
-d.plot.scatter('t_ahead_hours', 'likelihood')
 
 
 
@@ -507,6 +499,8 @@ plt.title('NLL over time (lower is better)')
 
 # A scatter plot is easy with xarray
 ds_preds.plot.scatter('y_true', 'y_pred', s=.01)
+
+
 
 
 

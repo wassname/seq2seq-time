@@ -1,6 +1,7 @@
 import pandas as pd
 import torch.utils.data
 import numpy as np
+import typing
 
 def assert_normalized(df):
     stats = df.describe().T
@@ -10,7 +11,6 @@ def assert_normalized(df):
 def assert_no_objects(df):
     for name, dtype in df.dtypes.iteritems():
         assert dtype.name!='object', f'all objects should be pd.categories. {name} is not'
-
 
 
 class Seq2SeqDataSet(torch.utils.data.Dataset):
@@ -90,6 +90,8 @@ class Seq2SeqDataSet(torch.utils.data.Dataset):
         y_past = pd.DataFrame(y_past, columns=self.columns_target, index=t_past)
         y_future = pd.DataFrame(y_future, columns=self.columns_target, index=t_future)
         return x_past, y_past, x_future, y_future
+
+
         
     def __len__(self):
         return len(self._x) - (self.window_past + self.window_future)
@@ -97,3 +99,44 @@ class Seq2SeqDataSet(torch.utils.data.Dataset):
     def __repr__(self):
         t = self.df.index
         return f'<{type(self).__name__}(shape={self.df.shape}, times={t[0]} to {t[1]} at {t.freq.freqstr})>'
+
+
+class Seq2SeqDataSets(torch.utils.data.Dataset):
+    """
+    Multiple datasets. 
+    
+    See Seq2SeqDataSets
+    """
+    def __init__(self, dfs: typing.List[pd.DataFrame], **kwargs):
+        self.datasets = [Seq2SeqDataSet(df, **kwargs) for df in dfs]
+
+    def __getitem__(self, i):
+        l = 0
+        for d in self.datasets:
+            l += len(d)
+            if i < l:
+                return d[i]
+        raise IndexError
+
+    def get_rows(self, i):
+        """
+        Output pandas dataframes for display purposes.
+        """
+        x_cols = list(self.df.drop(columns=self.columns_target).columns) + ['tsp_days', 'is_past']
+        x_past, y_past, x_future, y_future = self.get_components(i)
+        t_past = self.df.index[i:i+self.window_past]
+        t_future = self.df.index[i+self.window_past:i+self.window_past + self.window_future]
+        x_past = pd.DataFrame(x_past, columns=x_cols, index=t_past)
+        x_future = pd.DataFrame(x_future, columns=x_cols, index=t_future)
+        y_past = pd.DataFrame(y_past, columns=self.columns_target, index=t_past)
+        y_future = pd.DataFrame(y_future, columns=self.columns_target, index=t_future)
+        return x_past, y_past, x_future, y_future
+
+    def __len__(self):
+        l = 0
+        for d in self.datasets:
+            l += len(d)
+        return l
+    
+    def __repr__(self):
+        return f'<{type(self).__name__}({self.datasets})>'
