@@ -115,7 +115,7 @@ class Seq2SeqDataSets(torch.utils.data.Dataset):
         for d in self.datasets:
             l += len(d)
             if i < l:
-                return d[i]
+                return d[l-i]
         raise IndexError
 
     def get_rows(self, i):
@@ -123,7 +123,7 @@ class Seq2SeqDataSets(torch.utils.data.Dataset):
         for d in self.datasets:
             l += len(d)
             if i < l:
-                return d.get_rows(i)
+                return d.get_rows(l-i)
         raise IndexError
 
     def __len__(self):
