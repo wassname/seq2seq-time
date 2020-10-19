@@ -35,9 +35,10 @@ def predict(model, ds_test, batch_size, device='cpu', scaler=None):
 
         # Make an xarray.Dataset for the data
         bs = y_future.shape[0]
-        t_source = ds_test.df.index[i:i+bs].values
-        t_ahead = pd.timedelta_range(0, periods=ds_test.window_future, freq=freq).values
-        t_behind = pd.timedelta_range(end=-pd.Timedelta(freq), periods=ds_test.window_past, freq=freq)
+        wp = ds_test.window_past
+        t_source = ds_test.df.index[wp + i*bs -1:wp+ i*bs+bs -1].values
+        t_ahead = pd.timedelta_range(1, periods=ds_test.window_future, freq=freq).values
+        t_behind = pd.timedelta_range(end=0, periods=ds_test.window_past, freq=freq)
         xr_out = xr.Dataset(
             {
                 # Format> name: ([dimensions,...], array),
@@ -77,5 +78,5 @@ def predict_multi(model, datasets, batch_size, device='cpu', scaler=None):
                         d,
                         batch_size,
                         device=device,
-                        scaler=output_scaler) for d in tqdm(datasets)]
+                        scaler=scaler) for d in tqdm(datasets, desc='predict_multi')]
     return xr.concat(ds_preds, dim='block')

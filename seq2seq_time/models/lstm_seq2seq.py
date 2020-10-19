@@ -36,4 +36,4 @@ class LSTMSeq2Seq(nn.Module):
         log_sigma = self.std(outputs)
         sigma = self._min_std + (1 - self._min_std) * F.softplus(log_sigma)
         y_dist = torch.distributions.Normal(mean, sigma)
-        return y_dist
+        return y_dist, {}

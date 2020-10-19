@@ -7,6 +7,7 @@ import math
 
 
 class LSTMBlock(nn.Module):
+    """Wrapper to return only lstm output."""
     def __init__(
         self,
         in_channels,
@@ -437,14 +438,21 @@ class RANP(nn.Module):
         if self._use_rnn:
             # see https://arxiv.org/abs/1910.09323 where x is substituted with h = RNN(x)
             # x need to be provided as [B, T, H]
-            future_x, _ = self._lstm(future_x)
-            past_x, _ = self._lstm(past_x)
+            S = past_x.shape[1]
+            x = torch.cat([past_x, future_x], 1)
+            x, _ = self._lstm(x)
+            past_x = x[:, :S]
+            future_x = x[:, S:]
+            # future_x, _ = self._lstm(future_x)
+            # past_x, _ = self._lstm(past_x)
 
         dist_prior, log_var_prior = self._latent_encoder(past_x, past_y)
 
-        if future_y is not None:
+        if (future_y is not None):
             dist_post, log_var_post = self._latent_encoder(future_x, future_y)
-            z = dist_post.loc
+
+        if self.training:
+            z = dist_prior.rsample()
         else:
             z = dist_prior.loc
 
@@ -471,3 +479,4 @@ class RANP(nn.Module):
             ].mean()
             loss = (kl_loss - log_p).mean()
         return dist, {'loss':loss}
+
