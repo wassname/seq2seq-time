@@ -19,11 +19,11 @@ def predict(model, ds_test, batch_size, device='cpu', scaler=None):
     load_test = torch.utils.data.dataloader.DataLoader(ds_test, batch_size=batch_size)
     freq = ds_test.df.index.freq
     xrs = []
-    for i, batch in enumerate(tqdm(load_test, desc='predict')):
+    for i, batch in enumerate(tqdm(load_test, desc='predict', leave=False)):
         model.eval()
         with torch.no_grad():
             x_past, y_past, x_future, y_future = [d.to(device) for d in batch]
-            y_dist = model(x_past, y_past, x_future, y_future)
+            y_dist, extra = model(x_past, y_past, x_future)
             nll = -y_dist.log_prob(y_future)
 
             # Convert to numpy
@@ -70,3 +70,12 @@ def predict(model, ds_test, batch_size, device='cpu', scaler=None):
     # Some plots don't like timedeltas, so lets make a coordinate for time ahead in hours
     ds_preds = ds_preds.assign_coords(t_ahead_hours=(ds_preds.t_ahead*1.0e-9/60/60).astype(float))
     return ds_preds
+
+def predict_multi(model, datasets, batch_size, device='cpu', scaler=None):
+    """Predict over multiple datasets."""
+    ds_preds = [predict(model.to(device),
+                        d,
+                        batch_size,
+                        device=device,
+                        scaler=output_scaler) for d in tqdm(datasets)]
+    return xr.concat(ds_preds, dim='block')

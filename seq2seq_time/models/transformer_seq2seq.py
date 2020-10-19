@@ -76,5 +76,5 @@ class TransformerSeq2Seq(nn.Module):
         mean = self.mean(outputs)
         log_sigma = self.std(outputs)
         sigma = self._min_std + (1 - self._min_std) * F.softplus(log_sigma)
-        return torch.distributions.Normal(mean, sigma)
+        return torch.distributions.Normal(mean, sigma), {}
 

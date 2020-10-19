@@ -61,8 +61,11 @@ from tqdm.auto import tqdm
 import pytorch_lightning as pl
 # -
 
+import warnings
+warnings.simplefilter('once')
+
 from seq2seq_time.data.dataset import Seq2SeqDataSet, Seq2SeqDataSets
-from seq2seq_time.predict import predict
+from seq2seq_time.predict import predict, predict_multi
 
 import logging, sys
 # logging.basicConfig(stream=sys.stdout, level=logging.INFO)
@@ -79,7 +82,7 @@ window_future = 48*2
 batch_size = 256
 num_workers = 5
 freq = '30T'
-max_rows = 2e5
+max_rows = 5e5
 
 
 # -
@@ -88,7 +91,7 @@ max_rows = 2e5
 
 # +
 
-def get_smartmeter_df(indir=Path('../data/raw/smart-meters-in-london'), max_files=1):
+def get_smartmeter_df(indir=Path('../data/raw/smart-meters-in-london'), max_files=8):
     """
     Data loading and cleanding is always messy, so understand this code is optional.
     """
@@ -96,62 +99,65 @@ def get_smartmeter_df(indir=Path('../data/raw/smart-meters-in-london'), max_file
     # Load csv files
     csv_files = sorted((indir/'halfhourly_dataset').glob('*.csv'))[:max_files]
     
-    # concatendate them
-    df = pd.concat([pd.read_csv(f, parse_dates=[1], na_values=['Null']) for f in csv_files])
+    dfs = []
+    for f in csv_files:
+        df = (pd.read_csv(f, parse_dates=[1], na_values=['Null'])
+              .groupby('tstp')
+              .sum()
+              .sort_index()
+             )
+        df['block'] = f.stem
+
+        # Drop nan and 0's
+        df = df[df['energy(kWh/hh)']!=0]
+        df = df.dropna()
+        
+        # Add time features 
+        time = df.index.to_series()
+        df["month"] = time.dt.month
+        df['day'] = time.dt.day
+        df['week'] = time.dt.week
+        df['hour'] = time.dt.hour
+        df['minute'] = time.dt.minute
+        df['dayofweek'] = time.dt.dayofweek
+
+        # Load weather data
+        df_weather = pd.read_csv(indir/'weather_hourly_darksky.csv', parse_dates=[3])
+        use_cols = ['visibility', 'windBearing', 'temperature', 'time', 'dewPoint',
+               'pressure', 'apparentTemperature', 'windSpeed', 
+               'humidity']
+        df_weather = df_weather[use_cols].set_index('time')
+        
+        # Resample to match energy data   
+        # Use first, since we have bearing, and you can't take mean
+        df_weather = df_weather.resample(freq).first().ffill()  
+
+        # Join weather and energy data
+        df = pd.merge(df, df_weather, how='inner', left_index=True, right_index=True, sort=True)
+
+        # Holidays
+        df_hols = pd.read_csv(indir/'uk_bank_holidays.csv', parse_dates=[0])
+        holidays = set(df_hols['Bank holidays'].dt.round('D'))  
+        def is_holiday(dt):
+            return dt in holidays
+        days = df.index.floor('D')
+        holiday_mapping = days.unique().to_series().apply(is_holiday).astype(int).to_dict()
+        df['holiday'] = days.to_series().map(holiday_mapping).values
+
+        # sort
+        df.index.name = 'Date'
+        df = df.loc['2012-09':] # Weird value before this
     
-    # Add ACORN categories
-    df_households = pd.read_csv(indir/'informations_households.csv')
-    df_households = df_households[['LCLid', 'stdorToU', 'Acorn_grouped']]
-    df = pd.merge(df, df_households, on='LCLid')
+        dfs.append(df)
     
-    
-    df = df.sort_values(['tstp', 'LCLid'])
-    
-    df = df.set_index('tstp')
-    
-    # Drop nan and 0's
-    df = df[df['energy(kWh/hh)']!=0]
-    df = df.dropna()
-    
-    # Add time features 
-    time = df.index.to_series()
-    df["month"] = time.dt.month
-    df['day'] = time.dt.day
-    df['week'] = time.dt.week
-    df['hour'] = time.dt.hour
-    df['minute'] = time.dt.minute
-    df['dayofweek'] = time.dt.dayofweek
-    
-    # Load weather data
-    df_weather = pd.read_csv(indir/'weather_hourly_darksky.csv', parse_dates=[3])
-    use_cols = ['visibility', 'windBearing', 'temperature', 'time', 'dewPoint',
-           'pressure', 'apparentTemperature', 'windSpeed', 
-           'humidity']
-    df_weather = df_weather[use_cols].set_index('time')
-    df_weather = df_weather.resample(freq).first().ffill()  # Resample to match energy data   
-    
-    # Join weather and energy data
-    df = pd.merge(df, df_weather, how='inner', left_index=True, right_index=True, sort=True)
-    
-    # Holidays
-    df_hols = pd.read_csv(indir/'uk_bank_holidays.csv', parse_dates=[0])
-    holidays = set(df_hols['Bank holidays'].dt.round('D'))  
-    def is_holiday(dt):
-        return dt in holidays
-    days = df.index.floor('D')
-    holiday_mapping = days.unique().to_series().apply(is_holiday).astype(int).to_dict()
-    df['holiday'] = days.to_series().map(holiday_mapping).values
-    
-    # sort
-    df = df.reset_index().sort_values(['LCLid', 'index']).set_index('index')
-    df.index.name = 'Date'
-    
-    return df
+    return pd.concat(dfs)
 # -
+
+
 # Our dataset is the london smartmeter data. But at half hour intervals
 
 # +
-df = get_smartmeter_df()
+df = get_smartmeter_df(max_files=12)
 
 # # Just get the first one for now
 # dfs = list(dfs)
@@ -161,14 +167,15 @@ df = get_smartmeter_df()
 df = df.tail(int(max_rows)).copy() # Just use last X rows
 # df = pd.concat(dfs[:6], 0)
 # # df = dfs[0]
-df.LCLid.value_counts()
+print(df.block.value_counts())
+df
 # -
 
 
 
 # ### Plot/explore
 
-df
+
 
 
 
@@ -186,22 +193,22 @@ from holoviews.operation import decimate
 hv.extension('bokeh')
 
 
-def house_curve(Name=None):
-    if isinstance(Name, int):
-        name = df.LCLid.unique()[Name]
-    d = df[df.LCLid == Name]
-    d_curve = hv.Curve(d, 'Date', 'energy(kWh/hh)', label=Name)
-    return d_curve
+# def house_curve(Name=None):
+#     if isinstance(Name, int):
+#         name = df.block.unique()[Name]
+#     d = df[df.block == Name]
+#     d_curve = hv.Curve(d, 'Date', 'energy(kWh/hh)', label=Name).opts(framewise=True)
+#     return d_curve
 
 
-dmap = hv.DynamicMap(house_curve, kdims=['Name'])
-dmap = dmap.redim.values(Name=list(df.LCLid.unique()))
-dynspread(datashade(dmap).opts(width=800,
-                     height=300,
-                     tools=['xwheel_zoom', 'pan'],
-                     active_tools=['xwheel_zoom', 'pan'],
-                     default_tools=['reset', 'save', 'hover']
-                    ))
+# dmap = hv.DynamicMap(house_curve, kdims=['Name'])
+# dmap = dmap.redim.values(Name=list(df.block.unique()))
+# dynspread(datashade(dmap).opts(width=800,
+#                      height=300,
+#                      tools=['xwheel_zoom', 'pan'],
+#                      active_tools=['xwheel_zoom', 'pan'],
+#                      default_tools=['reset', 'save', 'hover']
+#                     ))
 # -
 
 
@@ -239,6 +246,8 @@ df_norm
 output_scaler = next(filter(lambda r:r[0][0] in columns_target, scaler.features))[-1]
 output_scaler
 
+# ### Split
+
 # +
 # split data, with the test in the future
 
@@ -247,24 +256,36 @@ d1 = df_norm.index.max()
 split_time = d0+(d1-d0)*0.8
 split_time = split_time.round('1D')
 print(split_time)
-df_train = df_norm.groupby('LCLid').apply(lambda d:d.loc[:split_time]).reset_index(level=0, drop=True)
-df_test = df_norm.groupby('LCLid').apply(lambda d:d.loc[split_time:]).reset_index(level=0, drop=True)
+df_train = df_norm.groupby('block').apply(lambda d:d.loc[:split_time]).reset_index(level=0, drop=True)
+df_test = df_norm.groupby('block').apply(lambda d:d.loc[split_time:]).reset_index(level=0, drop=True)
 # df_test
+
+# +
+# # Show split
+# df_train['energy(kWh/hh)'].plot(label='train')
+# df_test['energy(kWh/hh)'].plot(label='test')
+# plt.ylabel('energy(kWh/hh)')
+# plt.legend()
 # -
 
-# Show split
-df_train['energy(kWh/hh)'].plot(label='train')
-df_test['energy(kWh/hh)'].plot(label='test')
-plt.ylabel('energy(kWh/hh)')
-plt.legend()
+# # Show split
+scatter = dynspread(datashade(hv.Curve(df_train, kdims=['Date'], vdims=['energy(kWh/hh)', 'block']).groupby('block'), cmap='blue'))
+scatter *= dynspread(datashade(hv.Curve(df_test, kdims=['Date'], vdims=['energy(kWh/hh)', 'block']).groupby('block'), cmap='red'))
+scatter = scatter.opts(plot=dict(width=800))
+scatter
+
+# ### Dataset
+
+# +
+
 # ### Dataset
 # These are the columns that we wont know in the future
 # We need to blank them out in x_future
 columns_blank=['visibility',
        'windBearing', 'temperature', 'dewPoint', 'pressure',
        'apparentTemperature', 'windSpeed', 'humidity']
-df_trains = [d.resample(freq).first().ffill().dropna() for _,d in df_train.groupby('LCLid')]
-df_tests = [d.resample(freq).first().ffill().dropna() for _,d in df_test.groupby('LCLid')]
+df_trains = [d.resample(freq).first().ffill().dropna() for _,d in df_train.groupby('block')]
+df_tests = [d.resample(freq).first().ffill().dropna() for _,d in df_test.groupby('block')]
 ds_train = Seq2SeqDataSets(df_trains,
                           window_past=window_past,
                           window_future=window_future,
@@ -275,6 +296,7 @@ ds_test = Seq2SeqDataSets(df_tests,
                          columns_blank=columns_blank)
 print(ds_train)
 print(ds_test)
+# -
 # we can treat it like an array
 ds_train[0]
 len(ds_train)
@@ -297,14 +319,9 @@ x_past.tail()
 # Notice we've hidden some future columns to prevent cheating
 x_future.tail()
 
+
 # ## Plot helpers
 
-from seq2seq_time.models.lstm_seq2seq import LSTMSeq2Seq
-from seq2seq_time.models.lstm import LSTM
-from seq2seq_time.models.baseline import BaselineLast
-from seq2seq_time.models.transformer import Transformer
-from seq2seq_time.models.transformer_seq2seq import TransformerSeq2Seq
-# ## Plots
 # +
 def plot_prediction(ds_preds, i):
     """Plot a prediction into the future, at a single point in time."""
@@ -352,8 +369,9 @@ def plot_prediction(ds_preds, i):
     
 def plot_performance(ds_preds, full=False):
     """Multiple plots using xr_preds"""
+    print(f'mean_NLL {ds_preds.nll.mean().item():2.2f}')
     plot_prediction(ds_preds, 24)
-    plot_prediction(ds_preds, 480)
+#     plot_prediction(ds_preds, 480)
 
     ds_preds.mean('t_source').plot.scatter('t_ahead_hours', 'nll') # Mean over all predictions
     n = len(ds_preds.t_source)
@@ -375,7 +393,7 @@ def plot_performance(ds_preds, full=False):
         ds_preds.plot.scatter('y_true', 'y_pred', s=.01)
         plt.show()
     
-    print(f'mean_NLL {ds_preds.nll.mean().item():2.2f}')
+    
 # -
 
 
@@ -406,14 +424,18 @@ class PL_MODEL(pl.LightningModule):
 
     def forward(self, x_past, y_past, x_future, y_future=None):
         """Eval/Predict"""
-        y_dist = self._model(x_past, y_past, x_future)
-        return y_dist
+        y_dist, extra = self._model(x_past, y_past, x_future, y_future)
+        return y_dist, extra
 
     def training_step(self, batch, batch_idx, phase='train'):
         x_past, y_past, x_future, y_future = batch
-        y_dist = self.forward(*batch)
+        y_dist, extra = self.forward(*batch)
         loss = -y_dist.log_prob(y_future).mean()
         self.log_dict({f'loss/{phase}':loss})
+        if ('loss' in extra) and (phase=='train'):
+            # some models have a special loss
+            loss = extra['loss']
+            self.log_dict({f'model_loss/{phase}':loss})
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -435,7 +457,6 @@ class PL_MODEL(pl.LightningModule):
 # # Run
 from torch.utils.data import DataLoader
 from pytorch_lightning.loggers import CSVLogger
-from pl_bolts.callbacks import PrintTableMetricsCallback
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 
@@ -453,6 +474,50 @@ dl_train = DataLoader(ds_train,
 dl_test = DataLoader(ds_test, batch_size=batch_size, num_workers=num_workers)
 # -
 
+from seq2seq_time.models.lstm_seq2seq import LSTMSeq2Seq
+from seq2seq_time.models.lstm_seq import LSTMSeq
+from seq2seq_time.models.lstm import LSTM
+from seq2seq_time.models.baseline import BaselineLast
+from seq2seq_time.models.transformer import Transformer
+from seq2seq_time.models.transformer_seq2seq import TransformerSeq2Seq
+from seq2seq_time.models.transformer_seq import TransformerSeq
+from seq2seq_time.models.anp import RANP
+# ## Plots
+# +
+models = [
+    RANP(input_size,
+                output_size),
+    LSTM(input_size,
+         output_size,
+         hidden_size=80,
+         lstm_layers=3,
+         lstm_dropout=0.3),
+
+    LSTMSeq2Seq(input_size,
+                output_size,
+                hidden_size=64,
+                lstm_layers=2,
+                lstm_dropout=0.25),
+    TransformerSeq2Seq(input_size,
+                       output_size,
+                       hidden_size=64,
+                       nhead=8,
+                       nlayers=4,
+                       attention_dropout=0.3),
+    Transformer(input_size,
+                output_size,
+                attention_dropout=0.3,
+                nhead=8,
+                nlayers=6,
+                hidden_size=64),
+    TransformerSeq(input_size,
+                output_size),
+    LSTMSeq(input_size,
+                output_size),
+    
+]
+# -
+
 # Baseline model
 pt_model = BaselineLast()
 model = PL_MODEL(pt_model).to(device)
@@ -467,49 +532,6 @@ print(plot_hist(trainer))
 ds_preds = predict(model.to(device), ds_test.datasets[0], batch_size, device=device, scaler=output_scaler)
 print(f'baseline nll: {ds_preds.nll.mean().item():2.2g}')
 
-
-
-models = [
-#     BaselineLast(),
-    LSTM(input_size,
-         output_size,
-         hidden_size=80,
-         lstm_layers=3,
-         lstm_dropout=0.3),
-    Transformer(input_size,
-                output_size,
-                attention_dropout=0.3,
-                nhead=8,
-                nlayers=6,
-                hidden_size=64),
-    LSTMSeq2Seq(input_size,
-                output_size,
-                hidden_size=64,
-                lstm_layers=2,
-                lstm_dropout=0.25),
-    TransformerSeq2Seq(input_size,
-                       output_size,
-                       hidden_size=64,
-                       nhead=8,
-                       nlayers=4,
-                       attention_dropout=0.3),
-#     Transformer(input_size,
-#                 output_size,
-#                 attention_dropout=0.2,
-#                 nhead=8,
-#                 nlayers=6,
-#                 hidden_size=128),
-#     LSTM(input_size,
-#          output_size,
-#          hidden_size=128,
-#          lstm_layers=3,
-#          lstm_dropout=0.3),
-]
-
-
-
-
-
 for pt_model in models:
     name = type(pt_model).__name__
     print(name)
@@ -518,36 +540,66 @@ for pt_model in models:
     patience = 2
     model = PL_MODEL(pt_model, patience=patience, lr=3e-4).to(device)
 
-    # Trainer
-    
+    # Trainer    
     trainer = pl.Trainer(gpus=1,
-                         min_epochs=1,
+                         min_epochs=2,
                          max_epochs=10,
                          amp_level='O1',
                          precision=16,
-                         gradient_clip_val=0.5,
+                         gradient_clip_val=1,
                          logger=CSVLogger("logs",
                                           name=type(pt_model).__name__),
                          callbacks=[
                              EarlyStopping(monitor='loss/val', patience=patience*2),
-                             PrintTableMetricsCallback()
+#                              PrintTableMetricsCallback2()
                          ],
     )
 
     # Train
     trainer.fit(model, dl_train, dl_test)
 
-    # Performance
-    print(plot_hist(trainer))
+
 
     ds_preds = predict(model.to(device),
                        ds_test.datasets[0],
                        batch_size,
                        device=device,
                        scaler=output_scaler)
+    
+    print(name)
+    print(f'mean_NLL {ds_preds.nll.mean().item():2.2f}')
+    
+    # Performance
+    print(plot_hist(trainer))
     plot_performance(ds_preds)
 
+# %debug
 
+ds_preds = predict(model.to(device),q
+                   
+                   ds_test.datasets[0],
+                   batch_size,
+                   device=device,
+                   scaler=output_scaler)
+
+# +
+# ds_predss = predict_multi(model.to(device),
+#                    ds_test.datasets,
+#                    batch_size,
+#                    device=device,
+#                    scaler=output_scaler)
+# -
+
+ds_test.datasets[0].df.index.value_counts()
+
+# TODO why dup?
+ds_preds.sel(t_source='2013-11-11 00:30:00')
+
+# TODO why duplicates?
+d = ds_preds.isel(t_ahead=0)
+d.t_source.to_series().sort_index()#.value_counts()
+# np.unique
+# d
 
 # # holoviews pred
 
@@ -565,7 +617,7 @@ def plot_prediction_now(t_source):
 
     d = ds_preds.sel(t_source=t_source)
 
-    # Sometimes there are duplicate time, take the first
+    # Sometimes there are duplicate times, take the first
     if len(d.t_source.shape) and d.t_source.shape[0] > 0:
         d = d.isel(t_source=0)
     if len(d.t_source.shape) and d.t_source.shape[0] == 0:
@@ -579,7 +631,7 @@ def plot_prediction_now(t_source):
     p = hv.Scatter({
         'x': x,
         'y': yt
-    }, label='true').opts(color='black', framewise=True)
+    }, label='true').opts(color='black')
 
     # Get arrays
     xf = d.t_target.values
@@ -594,7 +646,7 @@ def plot_prediction_now(t_source):
                  label='2*std').opts(alpha=0.5, line_width=0)
 
     # plot now line
-    p *= hv.VLine(now, label='now').opts(color='red')
+    p *= hv.VLine(now, label='now').opts(color='red', framewise=True)
     return p.opts(title=f'Prediction at {now}. NLL={d.nll.mean().item():2.2f}')
 
 
@@ -611,6 +663,7 @@ def plot_predictions_vs_time(it_ahead):
     """Plot predictions vs time with holoviews"""
 
     d = ds_preds.isel(t_ahead=it_ahead).groupby('t_source').first()
+    print(d)
 
     p = hv.Scatter({
         'x': d.t_source,
@@ -639,19 +692,22 @@ dmap_preds = (hv.DynamicMap(plot_predictions_vs_time, kdims=['it_ahead'])
                      height=300, 
                     ))
 dmap_preds
-# plot_prediction2(10).opts(width=800)
+# TODO fixme
 # -
 
 d = ds_preds.mean('t_source')['nll'].groupby('t_ahead_hours').mean()
 nll_vs_tahead = hv.Curve((d.t_ahead_hours, d)).redim(x='hours ahead', y='nll').opts(width=800)
 nll_vs_tahead
 
-d = ds_preds.mean('t_ahead')['nll'].groupby('t_source').mean()
-nll_vs_time = hv.Curve(d).opts(width=800)
-nll_vs_time
+# +
+# d = ds_preds.mean('t_ahead')['nll'].groupby('t_source').mean()
+# nll_vs_time = hv.Curve(d).opts(width=800)
+# nll_vs_time
 
-true_vs_pred = hv.Scatter((ds_preds.y_true, ds_preds.y_pred))
-dynspread(datashade(true_vs_pred))
+# +
+# true_vs_pred = hv.Scatter((ds_preds.y_true, ds_preds.y_pred))
+# dynspread(datashade(true_vs_pred))
+# -
 
 # # Summarize experiments
 
@@ -659,18 +715,18 @@ dynspread(datashade(true_vs_pred))
 
 # +
 
-# Run learning rate finder
-lr_finder = trainer.tuner.lr_find(model)
+# # Run learning rate finder
+# lr_finder = trainer.tuner.lr_find(model)
 
-# Results can be found in
-lr_finder.results
+# # Results can be found in
+# lr_finder.results
 
-# Plot with
-fig = lr_finder.plot(suggest=True)
-fig.show()
+# # Plot with
+# fig = lr_finder.plot(suggest=True)
+# fig.show()
 
-# Pick point based on plot, or get suggestion
-new_lr = lr_finder.suggestion()
+# # Pick point based on plot, or get suggestion
+# new_lr = lr_finder.suggestion()
 # -
 
 

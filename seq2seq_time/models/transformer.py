@@ -55,5 +55,5 @@ class Transformer(nn.Module):
         log_sigma = self.std(outputs)[:, steps:, :]
         
         sigma = self._min_std + (1 - self._min_std) * F.softplus(log_sigma)
-        return torch.distributions.Normal(mean, sigma)
+        return torch.distributions.Normal(mean, sigma), {}
 

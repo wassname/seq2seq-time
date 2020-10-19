@@ -12,4 +12,4 @@ class BaselineLast(nn.Module):
         B, S, F = future_x.shape
         mean = past_y[:, -1:].repeat(1, S, 1)
         std = (self.std * 1.0).repeat(1, S, 1)
-        return torch.distributions.Normal(mean, std)
+        return torch.distributions.Normal(mean, std), {}
