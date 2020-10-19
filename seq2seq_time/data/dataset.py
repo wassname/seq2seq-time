@@ -62,8 +62,8 @@ class Seq2SeqDataSet(torch.utils.data.Dataset):
         x_future = x[self.window_past:]
         y_future = y[self.window_past:]
 
-        # Stop it cheating by using future weather measurements
-        x_future[:, self._icol_blank] = 0
+        # Stop it cheating by using future weather measurements. Fill in with last value
+        x_future[:, self._icol_blank] = x_past[0, self._icol_blank]
         return x_past, y_past, x_future, y_future
 
 

@@ -23,4 +23,7 @@ dependencies:
   - pytorch-lightning
   - yapf
   - ipywidgets
+  - holoviews
+  - pandas-profiling
+  - datashader
 prefix: /home/wassname/anaconda/envs/seq2seq-time
