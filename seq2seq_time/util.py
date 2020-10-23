@@ -8,3 +8,7 @@ def to_numpy(x):
     if isinstance(x, torch.Tensor):
         x = x.cpu().detach().numpy()
     return x
+
+def mask_upper_triangular(N, device):
+    """Causal attention."""
+    return torch.triu(torch.ones(N, N), diagonal=1).to(device).bool()
