@@ -255,7 +255,12 @@ dependencies:
     - pyqt5-sip==4.19.18
     - pyqtchart==5.12
     - pyqtwebengine==5.12.1
+    - pytorch-fast-transformers==0.3.0
     - pytorch-lightning-bolts==0.2.5
+    - sklearn==0.0
     - sklearn-pandas==2.0.2
     - torchsummaryx==1.3.0
+    - ucimlr==0.3.0
+    - unlzw==0.1.1
+    - xlrd==1.2.0
 prefix: /home/wassname/anaconda/envs/seq2seq-time

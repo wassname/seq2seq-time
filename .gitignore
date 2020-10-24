@@ -1,4 +1,5 @@
 lightning_logs/
+dataset_folder/
 logs/
 
 # Byte-compiled / optimized / DLL files

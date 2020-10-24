@@ -20,9 +20,11 @@ class LSTM(nn.Module):
 
     def forward(self, past_x, past_y, future_x, future_y=None):
         device = next(self.parameters()).device
-        future_y_fake = (
-            torch.ones(past_y.shape[0], future_x.shape[1], past_y.shape[2]).float().to(device) * self.nan_value
-        )
+        B, S, _ = future_x.shape
+        future_y_fake = past_y[:, -1:, :].repeat(1, S, 1).to(device)
+        # future_y_fake = (
+        #     torch.ones(past_y.shape[0], future_x.shape[1], past_y.shape[2]).float().to(device) * self.nan_value
+        # )
         context = torch.cat([past_x, past_y], -1).detach()
         target = torch.cat([future_x, future_y_fake], -1).detach()
         x = torch.cat([context, target * 1], 1).detach()

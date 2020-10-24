@@ -31,8 +31,8 @@ class LatentEncoder(nn.Module):
         self.encoder = nn.TransformerEncoder(
             layer_enc, num_layers=num_layers, norm=encoder_norm
         )
-        self.mean = nn.Linear(hidden_size, latent_dim)
-        self.log_var = nn.Linear(hidden_size, latent_dim)
+        self.mean = nn.Linear(hidden_size*3, latent_dim)
+        self.log_var = nn.Linear(hidden_size*3, latent_dim)
         self._min_std = min_std
 
     def forward(self, x, y):
@@ -48,13 +48,18 @@ class LatentEncoder(nn.Module):
 
         r = self.encoder(x, mask=mask)
         r = r.permute(1, 0, 2)  # (S,B,hidden_size) -> (B,S,hidden_size)
-        r = r.mean(1) #  (B,S,hidden_size) ->  (B,hidden_size)
+
+        # Aggregation (max/mean/last)
+        r_mean = r.mean(1)  #  (B,S,hidden_size) ->  (B,hidden_size)
+        r_last = r[:, -1, :] 
+        r_max = r.max(1)[0]
+        r = torch.cat([r_mean, r_last, r_max], -1)
+        
         mean = self.mean(r)
         log_sigma = self.log_var(r)
         sigma = self._min_std + (1 - self._min_std) * torch.sigmoid(log_sigma * 0.5)
         dist = torch.distributions.Normal(mean, sigma)
         return dist
-
 
 
 class Decoder(nn.Module):

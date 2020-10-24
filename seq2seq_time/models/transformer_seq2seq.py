@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-
+from ..util import mask_upper_triangular
 
 class TransformerSeq2Seq(nn.Module):
     def __init__(self, x_size, y_size, hidden_size=16, nhead=8, nlayers=2, attention_dropout=0, min_std=0.01, nan_value=0):
@@ -16,7 +16,7 @@ class TransformerSeq2Seq(nn.Module):
         encoder_norm = nn.LayerNorm(hidden_size)
         layer_enc = nn.TransformerEncoderLayer(
             d_model=hidden_size,
-            dim_feedforward=hidden_size*4,
+            dim_feedforward=hidden_size*8,
             dropout=attention_dropout,
             nhead=nhead,
             # activation
@@ -27,7 +27,7 @@ class TransformerSeq2Seq(nn.Module):
         
         layer_dec = nn.TransformerDecoderLayer(
             d_model=hidden_size,
-            dim_feedforward=hidden_size*4,
+            dim_feedforward=hidden_size*8,
             dropout=attention_dropout,
             nhead=nhead,
         )
@@ -67,7 +67,6 @@ class TransformerSeq2Seq(nn.Module):
         # In transformers the memory and future_x need to be the same length. Lets use a permutation invariant agg on the context
         # Then expand it, so it's available as we decode, conditional on future_x
         memory = memory.max(dim=0, keepdim=True)[0].expand_as(future_x)
-
         outputs = self.decoder(future_x, memory, tgt_key_padding_mask=tgt_key_padding_mask)
         
         # [T, B, emb_dim] -> [B, T, emb_dim]

@@ -32,7 +32,11 @@ class LSTMBlock(nn.Module):
 
 
 class NPBlockRelu2d(nn.Module):
-    """Block for Neural Processes."""
+    """
+    Block for Neural Processes.
+    
+    We want to apply batchnorm and dropout to the channels. We reshape so we can use Dropout2d & BatchNorm2d
+    """
 
     def __init__(
         self, in_channels, out_channels, dropout=0, batchnorm=False, bias=False
@@ -101,7 +105,6 @@ class Attention(nn.Module):
     def __init__(
         self,
         hidden_dim,
-        attention_type,
         attention_layers=2,
         n_heads=8,
         x_dim=1,
@@ -155,48 +158,33 @@ class LatentEncoder(nn.Module):
         input_dim,
         hidden_dim=32,
         latent_dim=32,
-        self_attention_type="dot",
         n_encoder_layers=3,
         min_std=0.01,
         batchnorm=False,
         dropout=0,
         attention_dropout=0,
-        use_self_attn=True,
         attention_layers=2,
-        use_lstm=False,
     ):
         super().__init__()
         # self._input_layer = nn.Linear(input_dim, hidden_dim)
-        if use_lstm:
-            self._encoder = LSTMBlock(
-                input_dim,
-                hidden_dim,
-                batchnorm=batchnorm,
-                dropout=dropout,
-                num_layers=n_encoder_layers,
-            )
-        else:
-            self._encoder = BatchMLP(
-                input_dim,
-                hidden_dim,
-                batchnorm=batchnorm,
-                dropout=dropout,
-                num_layers=n_encoder_layers,
-            )
-        if use_self_attn:
-            self._self_attention = Attention(
-                hidden_dim,
-                self_attention_type,
-                attention_layers,
-                rep="identity",
-                dropout=attention_dropout,
-            )
+
+        self._encoder = BatchMLP(
+            input_dim,
+            hidden_dim,
+            batchnorm=batchnorm,
+            dropout=dropout,
+            num_layers=n_encoder_layers,
+        )
+        self._self_attention = Attention(
+            hidden_dim,
+            attention_layers,
+            rep="identity",
+            dropout=attention_dropout,
+        )
         self._penultimate_layer = nn.Linear(hidden_dim, hidden_dim)
         self._mean = nn.Linear(hidden_dim, latent_dim)
         self._log_var = nn.Linear(hidden_dim, latent_dim)
         self._min_std = min_std
-        self._use_lstm = use_lstm
-        self._use_self_attn = use_self_attn
 
     def forward(self, x, y):
         encoder_input = torch.cat([x, y], dim=-1)
@@ -205,11 +193,8 @@ class LatentEncoder(nn.Module):
         encoded = self._encoder(encoder_input)
 
         # Aggregator: take the mean over all points
-        if self._use_self_attn:
-            attention_output = self._self_attention(encoded, encoded, encoded)
-            mean_repr = attention_output.mean(dim=1)
-        else:
-            mean_repr = encoded.mean(dim=1)
+        attention_output = self._self_attention(encoded, encoded, encoded)
+        mean_repr = attention_output.mean(dim=1)
 
         # Have further MLP layers that map to the parameters of the Gaussian latent
         mean_repr = torch.relu(self._penultimate_layer(mean_repr))
@@ -230,45 +215,28 @@ class DeterministicEncoder(nn.Module):
         x_dim,
         hidden_dim=32,
         n_d_encoder_layers=3,
-        self_attention_type="dot",
-        cross_attention_type="dot",
-        use_self_attn=True,
         attention_layers=2,
         batchnorm=False,
         dropout=0,
         attention_dropout=0,
-        use_lstm=False,
     ):
         super().__init__()
-        self._use_self_attn = use_self_attn
         # self._input_layer = nn.Linear(input_dim, hidden_dim)
-        if use_lstm:
-            self._d_encoder = LSTMBlock(
-                input_dim,
-                hidden_dim,
-                batchnorm=batchnorm,
-                dropout=dropout,
-                num_layers=n_d_encoder_layers,
-            )
-        else:
-            self._d_encoder = BatchMLP(
-                input_dim,
-                hidden_dim,
-                batchnorm=batchnorm,
-                dropout=dropout,
-                num_layers=n_d_encoder_layers,
-            )
-        if use_self_attn:
-            self._self_attention = Attention(
-                hidden_dim,
-                self_attention_type,
-                attention_layers,
-                rep="identity",
-                dropout=attention_dropout,
-            )
+        self._d_encoder = BatchMLP(
+            input_dim,
+            hidden_dim,
+            batchnorm=batchnorm,
+            dropout=dropout,
+            num_layers=n_d_encoder_layers,
+        )
+        self._self_attention = Attention(
+            hidden_dim,
+            attention_layers,
+            rep="identity",
+            dropout=attention_dropout,
+        )
         self._cross_attention = Attention(
             hidden_dim,
-            cross_attention_type,
             x_dim=x_dim,
             attention_layers=attention_layers,
         )
@@ -280,8 +248,7 @@ class DeterministicEncoder(nn.Module):
         # Pass final axis through MLP
         d_encoded = self._d_encoder(d_encoder_input)
 
-        if self._use_self_attn:
-            d_encoded = self._self_attention(d_encoded, d_encoded, d_encoded)
+        d_encoded = self._self_attention(d_encoded, d_encoded, d_encoded)
 
         # Apply attention as mean aggregation
         h = self._cross_attention(past_x, d_encoded, future_x)
@@ -301,7 +268,6 @@ class Decoder(nn.Module):
         min_std=0.01,
         batchnorm=False,
         dropout=0,
-        use_lstm=False,
     ):
         super(Decoder, self).__init__()
         self._future_transform = nn.Linear(x_dim, hidden_dim)
@@ -310,22 +276,14 @@ class Decoder(nn.Module):
         else:
             hidden_dim_2 = hidden_dim + latent_dim
 
-        if use_lstm:
-            self._decoder = LSTMBlock(
-                hidden_dim_2,
-                hidden_dim_2,
-                batchnorm=batchnorm,
-                dropout=dropout,
-                num_layers=n_decoder_layers,
-            )
-        else:
-            self._decoder = BatchMLP(
-                hidden_dim_2,
-                hidden_dim_2,
-                batchnorm=batchnorm,
-                dropout=dropout,
-                num_layers=n_decoder_layers,
-            )
+
+        self._decoder = BatchMLP(
+            hidden_dim_2,
+            hidden_dim_2,
+            batchnorm=batchnorm,
+            dropout=dropout,
+            num_layers=n_decoder_layers,
+        )
         self._mean = nn.Linear(hidden_dim_2, y_dim)
         self._std = nn.Linear(hidden_dim_2, y_dim)
         self._use_deterministic_path = use_deterministic_path
@@ -363,18 +321,14 @@ class RANP(nn.Module):
         latent_dim=32,  # size of latent space
         n_latent_encoder_layers=2,
         n_det_encoder_layers=2,  # number of deterministic encoder layers
-        n_decoder_layers=2,
+        n_decoder_layers=4,
         use_deterministic_path=True,
         min_std=0.01,  # To avoid collapse use a minimum standard deviation, should be much smaller than variation in labels
         dropout=0,
-        use_self_attn=True,
         attention_dropout=0,
         batchnorm=False,
         attention_layers=2,
         use_rnn=True,  # use RNN/LSTM
-        use_lstm_le=False,  # use another LSTM in latent encoder instead of MLP
-        use_lstm_de=False,  # use another LSTM in determinstic encoder instead of MLP
-        use_lstm_d=False,  # use another lstm in decoder instead of MLP
         **kwargs,
     ):
 
@@ -399,11 +353,9 @@ class RANP(nn.Module):
             n_encoder_layers=n_latent_encoder_layers,
             attention_layers=attention_layers,
             dropout=dropout,
-            use_self_attn=use_self_attn,
             attention_dropout=attention_dropout,
             batchnorm=batchnorm,
             min_std=min_std,
-            use_lstm=use_lstm_le,
         )
 
         self._deterministic_encoder = DeterministicEncoder(
@@ -412,11 +364,9 @@ class RANP(nn.Module):
             hidden_dim=hidden_dim,
             n_d_encoder_layers=n_det_encoder_layers,
             attention_layers=attention_layers,
-            use_self_attn=use_self_attn,
             dropout=dropout,
             batchnorm=batchnorm,
             attention_dropout=attention_dropout,
-            use_lstm=use_lstm_de,
         )
 
         self._decoder = Decoder(
@@ -429,7 +379,6 @@ class RANP(nn.Module):
             min_std=min_std,
             n_decoder_layers=n_decoder_layers,
             use_deterministic_path=use_deterministic_path,
-            use_lstm=use_lstm_d,
         )
         self._use_deterministic_path = use_deterministic_path
 
@@ -443,19 +392,17 @@ class RANP(nn.Module):
             x, _ = self._lstm(x)
             past_x = x[:, :S]
             future_x = x[:, S:]
-            # future_x, _ = self._lstm(future_x)
-            # past_x, _ = self._lstm(past_x)
 
         dist_prior, log_var_prior = self._latent_encoder(past_x, past_y)
 
         if (future_y is not None):
-            dist_post, log_var_post = self._latent_encoder(future_x, future_y)
+            y = torch.cat([past_y, future_y], 1)
+            dist_post, log_var_post = self._latent_encoder(x, y)
 
         if self.training:
             z = dist_prior.rsample()
         else:
             z = dist_prior.loc
-
         num_targets = future_x.size(1)
         z = z.unsqueeze(1).repeat(1, num_targets, 1)  # [B, T_target, H]
 
@@ -478,5 +425,20 @@ class RANP(nn.Module):
                 :, : past_x.size(1)
             ].mean()
             loss = (kl_loss - log_p).mean()
-        return dist, {'loss':loss}
+        return dist, {'loss': loss}
 
+
+# class NP(RANP):
+#     """Recurrent Attentive Neural Process for Sequential Data."""
+#     def __init__(
+#         self,
+#         use_self_attn=True,
+#         # TODO use cross attention flag
+#         use_rnn=True,  # use RNN/LSTM
+#         use_lstm_le=False,  # use another LSTM in latent encoder instead of MLP
+#         use_lstm_de=False,  # use another LSTM in determinstic encoder instead of MLP
+#         use_lstm_d=False,  # use another lstm in decoder instead of MLP
+#         **kwargs,
+#     ):
+#     kwargs
+#     super().__init__(**kwargs)

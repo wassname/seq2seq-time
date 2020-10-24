@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+from ..util import mask_upper_triangular
 
 class TransformerSeq(nn.Module):
     """
