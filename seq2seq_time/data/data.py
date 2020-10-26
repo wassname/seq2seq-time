@@ -7,9 +7,11 @@ from sklearn_pandas import DataFrameMapper
 import xarray as xr
 import pandas as pd
 import numpy as np
+import zipfile
 
 from .dataset import Seq2SeqDataSet
 from .util import normalize_encode_dataframe, timeseries_split
+from ..util import dset_to_nc
 from .tidal import generate_tidal_periods
 
 
@@ -77,20 +79,18 @@ class GasSensor(RegressionForecastData):
         url = 'http://archive.ics.uci.edu/ml/machine-learning-databases/00487/gas-sensor-array-temperature-modulation.zip'
         
         # download if needed
-        extract_path = self.datasets_root/'GasSensor'
-        files = sorted(extract_path.glob('*.csv'))
-        if len(files)<13:
-            print('download_and_extract_archive')
-            download_and_extract_archive(url, self.datasets_root, extract_path)
+        # extract_path = self.datasets_root/'gas-sensor-array-temperature-modulation.zip'
+        download_url(url, self.datasets_root)
         
-        # Load csv's
-        files = sorted(extract_path.glob('*.csv'))
-        dfs = []
-        for f in files:
-            now = pd.to_datetime(f.stem, format='%Y%m%d_%H%M%S')
-            df = pd.read_csv(f)
-            df.index = pd.to_timedelta(df['Time (s)'], unit='s') + now
-            dfs.append(df)
+        # Load csv's from inside zip
+        zf = zipfile.ZipFile(self.datasets_root / 'gas-sensor-array-temperature-modulation.zip')
+        dfs=[]
+        for f in zf.namelist():
+            if f.endswith('.csv'):
+                now = pd.to_datetime(Pdset_to_ncath(f).stem, format='%Y%m%d_%H%M%S')
+                df = pd.read_csv(zf.open(f))
+                df.index = pd.to_timedelta(df['Time (s)'], unit='s') + now
+                dfs.append(df)
         self.df = pd.concat(dfs).dropna(subset=self.columns_target)
 
         df = df[[ 'CO (ppm)', 'Humidity (%r.h.)', 'Temperature (C)',
@@ -272,11 +272,7 @@ def get_current_timeseries(
         # Add tidal freqs
         xd = xd.merge(df_eta)
 
-        # Cache to nc
-        xd.to_netcdf(outfile)
-        print(
-            f'wrote "{outfile}" with size {outfile.stat().st_size*1e-6:2.2f} MB'
-        )
+        dset_to_nc(xd, outfile)
     return outfile
 
 

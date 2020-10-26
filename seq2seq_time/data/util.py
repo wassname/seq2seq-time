@@ -16,4 +16,4 @@ def normalize_encode_dataframe(df, encoder=OrdinalEncoder):
 def timeseries_split(df, test_fraction=0.2):
     """Split timeseries data with test in the future"""
     i = int(len(df)*test_fraction)
-    return df.iloc[:i], df.iloc[i:]
+    return df.iloc[:-i], df.iloc[-i:]
