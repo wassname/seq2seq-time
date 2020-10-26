@@ -20,11 +20,11 @@ class Seq2SeqDataSet(torch.utils.data.Dataset):
     Returns x_past, y_past, x_future, etc.
     """
     
-    def __init__(self, df: pd.DataFrame, window_past=40, window_future=10, columns_target=['energy(kWh/hh)'], columns_blank=[],):
+    def __init__(self, df: pd.DataFrame, window_past=40, window_future=10, columns_target=['energy(kWh/hh)'], columns_past=[],):
         """
         Args:
         - df: DataFrame with time index, already scaled
-        - columns_blank: The columns we will blank, in the future
+        - columns_past: The columns we will blank, in the future
         """
         super().__init__()
         assert isinstance(df.index, pd.DatetimeIndex), 'should have a datetime index'
@@ -38,7 +38,7 @@ class Seq2SeqDataSet(torch.utils.data.Dataset):
         self.columns_target = columns_target
 
         # For speed
-        self._icol_blank = [df.drop(columns = columns_target).columns.tolist().index(n) for n in columns_blank]
+        self._icol_blank = [df.drop(columns = columns_target).columns.tolist().index(n) for n in columns_past]
         self._x = self.df.drop(columns = self.columns_target).values
         self._y = self.df[columns_target].values
 
@@ -64,6 +64,8 @@ class Seq2SeqDataSet(torch.utils.data.Dataset):
 
         # Stop it cheating by using future weather measurements. Fill in with last value
         x_future[:, self._icol_blank] = x_past[0, self._icol_blank]
+
+        # x_future[:, self._icol_blank] = 0
         return x_past, y_past, x_future, y_future
 
 

@@ -8,7 +8,7 @@ PROJECT_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 BUCKET = [OPTIONAL] your-bucket-for-syncing-data (do not include 's3://')
 PROFILE = default
 PROJECT_NAME = seq2seq-time
-PYTHON_INTERPRETER = seq2seq-time
+PYTHON_INTERPRETER = python
 
 #################################################################################
 # COMMANDS                                                                      #
@@ -70,7 +70,7 @@ test:
 doc_reqs:
 	conda env export --no-builds --from-history --name $(PROJECT_NAME) > requirements/environment.min.yaml
 	conda env export  --name $(PROJECT_NAME) > requirements/environment.max.yaml
-	$(PYTHON_INTERPRETER) -m pip freeze > requirements/requirements.txt --name
+	$(PYTHON_INTERPRETER) -m pip freeze > requirements/requirements.txt
 
 #################################################################################
 # Self Documenting Commands                                                     #
