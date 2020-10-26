@@ -1,5 +1,6 @@
 import uptide
 import pandas as pd
+import numpy as np
 
 # https://en.wikipedia.org/wiki/Theory_of_tides#Harmonic_analysis
 default_tidal_constituents = [
