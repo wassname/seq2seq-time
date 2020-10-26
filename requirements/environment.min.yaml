@@ -26,4 +26,7 @@ dependencies:
   - holoviews
   - pandas-profiling
   - datashader
+  - fastparquet
+  - netcdf4
+  - nc-time-axis
 prefix: /home/wassname/anaconda/envs/seq2seq-time
