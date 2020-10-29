@@ -87,7 +87,7 @@ class GasSensor(RegressionForecastData):
         dfs=[]
         for f in zf.namelist():
             if f.endswith('.csv'):
-                now = pd.to_datetime(Pdset_to_ncath(f).stem, format='%Y%m%d_%H%M%S')
+                now = pd.to_datetime(Path(f).stem, format='%Y%m%d_%H%M%S')
                 df = pd.read_csv(zf.open(f))
                 df.index = pd.to_timedelta(df['Time (s)'], unit='s') + now
                 dfs.append(df)
