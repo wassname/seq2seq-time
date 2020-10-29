@@ -5,7 +5,66 @@ Using sequence to sequence interfaces for timeseries regression
 
 
 <img src="reports/figures/Seq2Seq for regression.png" />
-
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>BaselineLast</th>
+      <th>RANP</th>
+      <th>LSTM</th>
+      <th>LSTMSeq2Seq</th>
+      <th>TransformerSeq2Seq</th>
+      <th>TransformerProcess</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>IMOSCurrentsVel</th>
+      <td>1.63</td>
+      <td>23.31</td>
+      <td>19.44</td>
+      <td>14.52</td>
+      <td>46.98</td>
+      <td>7.35</td>
+    </tr>
+    <tr>
+      <th>BejingPM25</th>
+      <td>1.71</td>
+      <td>1.48</td>
+      <td>1.41</td>
+      <td>1.39</td>
+      <td>2.86</td>
+      <td>1.44</td>
+    </tr>
+    <tr>
+      <th>GasSensor</th>
+      <td>1.88</td>
+      <td>-2.24</td>
+      <td>16.40</td>
+      <td>-1.53</td>
+      <td>NaN</td>
+      <td>0.63</td>
+    </tr>
+    <tr>
+      <th>AppliancesEnergyPrediction</th>
+      <td>1.56</td>
+      <td>1.31</td>
+      <td>1.94</td>
+      <td>1.57</td>
+      <td>2.33</td>
+      <td>1.08</td>
+    </tr>
+    <tr>
+      <th>MetroInterstateTraffic</th>
+      <td>1.76</td>
+      <td>-0.27</td>
+      <td>-0.17</td>
+      <td>-0.25</td>
+      <td>4.15</td>
+      <td>-0.27</td>
+    </tr>
+  </tbody>
+</table>
 
 Project Organization
 ------------
