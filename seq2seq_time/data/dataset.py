@@ -31,6 +31,7 @@ class Seq2SeqDataSet(torch.utils.data.Dataset):
         assert df.index.freq is not None, 'should have freq'
         assert_no_objects(df)
 
+        self.freq = self.df.index.freq
         self.df = df.dropna(subset=columns_target).ffill()
 
         self.window_past = window_past
@@ -93,7 +94,8 @@ class Seq2SeqDataSet(torch.utils.data.Dataset):
         y_future = pd.DataFrame(y_future, columns=self.columns_target, index=t_future)
         return x_past, y_past, x_future, y_future
 
-
+    def show_batches(self, i=0):
+        raise Exception('not implemented')
         
     def __len__(self):
         return len(self._x) - (self.window_past + self.window_future)
