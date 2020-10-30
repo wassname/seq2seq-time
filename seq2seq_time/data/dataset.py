@@ -31,7 +31,7 @@ class Seq2SeqDataSet(torch.utils.data.Dataset):
         assert df.index.freq is not None, 'should have freq'
         assert_no_objects(df)
 
-        self.freq = self.df.index.freq
+        self.freq = df.index.freq
         self.df = df.dropna(subset=columns_target).ffill()
 
         self.window_past = window_past

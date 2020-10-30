@@ -26,7 +26,7 @@ class RegressionForecastData:
         self.df = self.download()        
         self.df_norm, self.scaler = self.normalize(self.df)
         self.output_scaler = next(filter(lambda r:r[0][0] in self.columns_target, self.scaler.features))[-1]
-        self.df_train, self.df_test = self.split(self.df_norm)
+        self.df_train, self.df_val, self.df_test = self.split(self.df_norm)
         
         # Check processing
         self.check()
@@ -46,7 +46,8 @@ class RegressionForecastData:
     
     def split(self, df_norm: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         df_train, df_test = timeseries_split(df_norm)
-        return df_train, df_test 
+        df_test, df_val  = timeseries_split(df_test, 0.5)
+        return df_train, df_val, df_test
     
     def check(self) -> None:
         """Check the resulting dataframe"""
@@ -61,8 +62,9 @@ class RegressionForecastData:
     def to_datasets(self, window_past: int, window_future: int, valid:bool=False) -> Tuple[Seq2SeqDataSet, Seq2SeqDataSet]:
         """Convert to torch datasets"""
         ds_train = Seq2SeqDataSet(self.df_train, window_past=window_past, window_future=window_future, columns_target=self.columns_target, columns_past=self.columns_past)
+        ds_val = Seq2SeqDataSet(self.df_val, window_past=window_past, window_future=window_future, columns_target=self.columns_target, columns_past=self.columns_past)
         ds_test = Seq2SeqDataSet(self.df_test, window_past=window_past, window_future=window_future, columns_target=self.columns_target, columns_past=self.columns_past)
-        return ds_train, ds_test
+        return ds_train, ds_val, ds_test
     
     def __repr__(self):
         return f'<{type(self).__name__} {self.df.shape if (self.df is not None) else None}>'
@@ -76,27 +78,32 @@ class GasSensor(RegressionForecastData):
     columns_forecast = ['Flow rate (mL/min)', 'Heater voltage (V)']
     
     def download(self):
+        # TODO cache in faster format
         url = 'http://archive.ics.uci.edu/ml/machine-learning-databases/00487/gas-sensor-array-temperature-modulation.zip'
         
         # download if needed
         # extract_path = self.datasets_root/'gas-sensor-array-temperature-modulation.zip'
         download_url(url, self.datasets_root)
+        outfile = self.datasets_root / 'gas-sensor-array-temperature-modulation.pk'
+        if not outfile.exists():
         
-        # Load csv's from inside zip
-        zf = zipfile.ZipFile(self.datasets_root / 'gas-sensor-array-temperature-modulation.zip')
-        dfs=[]
-        for f in zf.namelist():
-            if f.endswith('.csv'):
-                now = pd.to_datetime(Path(f).stem, format='%Y%m%d_%H%M%S')
-                df = pd.read_csv(zf.open(f))
-                df.index = pd.to_timedelta(df['Time (s)'], unit='s') + now
-                dfs.append(df)
-        self.df = pd.concat(dfs).dropna(subset=self.columns_target)
+            # Load csv's from inside zip
+            zf = zipfile.ZipFile(self.datasets_root / 'gas-sensor-array-temperature-modulation.zip')
+            dfs=[]
+            for f in zf.namelist():
+                if f.endswith('.csv'):
+                    now = pd.to_datetime(Path(f).stem, format='%Y%m%d_%H%M%S')
+                    df = pd.read_csv(zf.open(f))
+                    df.index = pd.to_timedelta(df['Time (s)'], unit='s') + now
+                    dfs.append(df)
+            self.df = pd.concat(dfs).dropna(subset=self.columns_target)
 
-        df = df[[ 'CO (ppm)', 'Humidity (%r.h.)', 'Temperature (C)',
-               'Flow rate (mL/min)', 'Heater voltage (V)', 'R1 (MOhm)']]
-        df = df.resample('0.3S').first()
-        
+            df = df[[ 'CO (ppm)', 'Humidity (%r.h.)', 'Temperature (C)',
+                'Flow rate (mL/min)', 'Heater voltage (V)', 'R1 (MOhm)']]
+            df = df.resample('0.3S').first()
+
+            df.to_pickle(outfile)
+        df = pd.read_pickle(outfile)
         return df
 
 
@@ -304,6 +311,6 @@ class IMOSCurrentsVel(RegressionForecastData):
             columns=['HEIGHT_ABOVE_SENSOR', 'NOMINAL_DEPTH'])
         df['SPD'] = np.sqrt(df.VCUR**2 + df.UCUR**2)
         df.dropna(subset=self.columns_target, inplace=True)
-        df = df.resample('30T').first()
+        df = df.resample('30T').first()[:'2015']
 
         return df

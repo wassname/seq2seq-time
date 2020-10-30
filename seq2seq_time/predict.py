@@ -49,7 +49,7 @@ def predict(model, ds_test, batch_size, device='cpu', scaler=None):
                 "y_true": (["t_source", "t_ahead",], y_future),
             },
             coords={"t_source": t_source, "t_ahead": t_ahead, "t_behind": t_behind},
-            attrs={'freq': ds_test.freq, "model": str(model), "targets": ds_test.columns_target}
+            attrs={'freq': str(ds_test.freq), "model": str(type(model)), "targets": ds_test.columns_target}
         )
         xrs.append(xr_out)
 

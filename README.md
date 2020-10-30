@@ -55,7 +55,6 @@ Using sequence to sequence interfaces for timeseries regression
       <td>1.08</td>
     </tr>
     <tr>
-    
       <th>MetroInterstateTraffic</th>
       <td>1.76</td>
       <td>-0.27</td>
