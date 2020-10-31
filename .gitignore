@@ -5,6 +5,7 @@ outputs/
 *ignore*.ipynb
 *Copy*.ipynb
 *Untitled*.ipynb
+old/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
