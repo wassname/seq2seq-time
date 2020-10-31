@@ -2,6 +2,9 @@ lightning_logs/
 dataset_folder/
 logs/
 outputs/
+*ignore*.ipynb
+*Copy*.ipynb
+*Untitled*.ipynb
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
