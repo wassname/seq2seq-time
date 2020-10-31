@@ -11,9 +11,8 @@ import zipfile
 
 from .dataset import Seq2SeqDataSet
 from .util import normalize_encode_dataframe, timeseries_split
-from ..util import dset_to_nc
+from ..util import dset_to_nc, logger
 from .tidal import generate_tidal_periods
-
 
 class RegressionForecastData:   
     columns_forecast = None # The input colums which can be included in future (e.g. week or weather forecast)
@@ -21,15 +20,29 @@ class RegressionForecastData:
     
     def __init__(self, datasets_root):        
         self.datasets_root = datasets_root
+
+        name = type(self).__name__
+        self.cache_file = self.datasets_root / f"._cache_{name}.pkl"
         
         # Process data
-        self.df = self.download()        
+        self.df = self.download_cache()        
         self.df_norm, self.scaler = self.normalize(self.df)
         self.output_scaler = next(filter(lambda r:r[0][0] in self.columns_target, self.scaler.features))[-1]
         self.df_train, self.df_val, self.df_test = self.split(self.df_norm)
         
         # Check processing
         self.check()
+
+    def clear_cache(self, ):
+        print(f'rm {self.cache_file}')
+        os.remove(self.cache_file)
+
+    def download_cache(self):
+        if not self.cache_file.exists():
+            logger.info(f"Using cache file {self.cache_file}")
+            df = self.download()
+            df.to_pickle(self.cache_file)
+        return pd.read_pickle(self.cache_file)
 
     @property
     def columns_past(self):
@@ -45,8 +58,8 @@ class RegressionForecastData:
         return df_norm, scaler
     
     def split(self, df_norm: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        df_train, df_test = timeseries_split(df_norm, 0.3)
-        df_test, df_val  = timeseries_split(df_test, 0.5)
+        df_train, df_test = timeseries_split(df_norm, 0.3, dropna=self.columns_forecast)
+        df_test, df_val = timeseries_split(df_test, 0.5, dropna=self.columns_forecast)
         return df_train, df_val, df_test
     
     def check(self) -> None:
@@ -84,26 +97,21 @@ class GasSensor(RegressionForecastData):
         # download if needed
         # extract_path = self.datasets_root/'gas-sensor-array-temperature-modulation.zip'
         download_url(url, self.datasets_root)
-        outfile = self.datasets_root / 'gas-sensor-array-temperature-modulation.pk'
-        if not outfile.exists():
-        
-            # Load csv's from inside zip
-            zf = zipfile.ZipFile(self.datasets_root / 'gas-sensor-array-temperature-modulation.zip')
-            dfs=[]
-            for f in zf.namelist():
-                if f.endswith('.csv'):
-                    now = pd.to_datetime(Path(f).stem, format='%Y%m%d_%H%M%S')
-                    df = pd.read_csv(zf.open(f))
-                    df.index = pd.to_timedelta(df['Time (s)'], unit='s') + now
-                    dfs.append(df)
-            self.df = pd.concat(dfs).dropna(subset=self.columns_target)
+    
+        # Load csv's from inside zip
+        zf = zipfile.ZipFile(self.datasets_root / 'gas-sensor-array-temperature-modulation.zip')
+        dfs=[]
+        for f in zf.namelist():
+            if f.endswith('.csv'):
+                now = pd.to_datetime(Path(f).stem, format='%Y%m%d_%H%M%S')
+                df = pd.read_csv(zf.open(f))
+                df.index = pd.to_timedelta(df['Time (s)'], unit='s') + now
+                dfs.append(df)
+        self.df = pd.concat(dfs).dropna(subset=self.columns_target)
 
-            df = df[[ 'CO (ppm)', 'Humidity (%r.h.)', 'Temperature (C)',
-                'Flow rate (mL/min)', 'Heater voltage (V)', 'R1 (MOhm)']]
-            df = df.resample('0.3S').first()
-
-            df.to_pickle(outfile)
-        df = pd.read_pickle(outfile)
+        df = df[[ 'CO (ppm)', 'Humidity (%r.h.)', 'Temperature (C)',
+            'Flow rate (mL/min)', 'Heater voltage (V)', 'R1 (MOhm)']]
+        df = df.resample('0.3S').first()
         return df
 
 
@@ -236,23 +244,23 @@ def get_current_timeseries(
     if not outfile.exists():
 
         files = [
-            "IMOS_ANMN-WA_AETVZ_20090715T080000Z_WATR20_FV01_WATR20-0907-Continental-194_END-20090716T181317Z_C-20191122T052830Z.nc",
-            "IMOS_ANMN-WA_AETVZ_20100409T080000Z_WATR20_FV01_WATR20-1004-Continental-194_END-20100430T084500Z_C-20191122T053845Z.nc",
-            "IMOS_ANMN-WA_AETVZ_20101222T080000Z_WATR20_FV01_WATR20-1012-Continental-194_END-20110518T051500Z_C-20200916T020035Z.nc",
+            # "IMOS_ANMN-WA_AETVZ_20090715T080000Z_WATR20_FV01_WATR20-0907-Continental-194_END-20090716T181317Z_C-20191122T052830Z.nc",
+            # "IMOS_ANMN-WA_AETVZ_20100409T080000Z_WATR20_FV01_WATR20-1004-Continental-194_END-20100430T084500Z_C-20191122T053845Z.nc",
+            # "IMOS_ANMN-WA_AETVZ_20101222T080000Z_WATR20_FV01_WATR20-1012-Continental-194_END-20110518T051500Z_C-20200916T020035Z.nc",
             "IMOS_ANMN-WA_AETVZ_20110608T080000Z_WATR20_FV01_WATR20-1106-Continental-194_END-20111122T035000Z_C-20200916T025619Z.nc",
             "IMOS_ANMN-WA_AETVZ_20111221T060300Z_WATR20_FV01_WATR20-1112-Continental-194_END-20120704T050500Z_C-20200916T043212Z.nc",
             "IMOS_ANMN-WA_AETVZ_20120726T044000Z_WATR20_FV01_WATR20-1207-Continental-194_END-20130204T044000Z_C-20200916T032027Z.nc",
             "IMOS_ANMN-WA_AETVZ_20130221T080000Z_WATR20_FV01_WATR20-1302-Continental-194_END-20131003T035000Z_C-20180529T020609Z.nc",
             "IMOS_ANMN-WA_AETVZ_20131111T080000Z_WATR20_FV01_WATR20-1311-Continental-194_END-20140519T035000Z_C-20200114T033335Z.nc",
-            "IMOS_ANMN-WA_AETVZ_20140710T080000Z_WATR20_FV01_WATR20-1407-Continental-194_END-20150121T021500Z_C-20180529T055902Z.nc",
-            "IMOS_ANMN-WA_AETVZ_20150213T080000Z_WATR20_FV01_WATR20-1502-Continental-194_END-20150424T134002Z_C-20200114T035347Z.nc",
-            "IMOS_ANMN-WA_AETVZ_20150914T080000Z_WATR20_FV01_WATR20-1509-Continental-194_END-20160331T043000Z_C-20180601T013623Z.nc",
-            "IMOS_ANMN-WA_AETVZ_20160427T080000Z_WATR20_FV01_WATR20-1604-Continental-194_END-20160531T021800Z_C-20180531T071709Z.nc",
+            # "IMOS_ANMN-WA_AETVZ_20140710T080000Z_WATR20_FV01_WATR20-1407-Continental-194_END-20150121T021500Z_C-20180529T055902Z.nc",
+            # "IMOS_ANMN-WA_AETVZ_20150213T080000Z_WATR20_FV01_WATR20-1502-Continental-194_END-20150424T134002Z_C-20200114T035347Z.nc",
+            # "IMOS_ANMN-WA_AETVZ_20150914T080000Z_WATR20_FV01_WATR20-1509-Continental-194_END-20160331T043000Z_C-20180601T013623Z.nc",
+            # "IMOS_ANMN-WA_AETVZ_20160427T080000Z_WATR20_FV01_WATR20-1604-Continental-194_END-20160531T021800Z_C-20180531T071709Z.nc",
             #     "IMOS_ANMN-WA_AETVZ_20170512T080000Z_WATR20_FV01_WATR20-1705-Continental-194_END-20170717T014558Z_C-20190805T004647Z.nc",
-            "IMOS_ANMN-WA_AETVZ_20171204T080000Z_WATR20_FV01_WATR20-1712-Continental-194_END-20180618T030000Z_C-20180620T233149Z.nc",
-            "IMOS_ANMN-WA_AETVZ_20180802T080000Z_WATR20_FV01_WATR20-1807-Continental-194_END-20190225T054500Z_C-20190227T001343Z.nc",
-            "IMOS_ANMN-WA_AETVZ_20190307T080000Z_WATR20_FV01_WATR20-1903-Continental-194_END-20190911T003144Z_C-20200114T045053Z.nc",
-            "IMOS_ANMN-WA_AETVZ_20190926T080000Z_WATR20_FV01_WATR20-1909-Continental-194_END-20200326T030000Z_C-20200420T064334Z.nc",
+            # "IMOS_ANMN-WA_AETVZ_20171204T080000Z_WATR20_FV01_WATR20-1712-Continental-194_END-20180618T030000Z_C-20180620T233149Z.nc",
+            # "IMOS_ANMN-WA_AETVZ_20180802T080000Z_WATR20_FV01_WATR20-1807-Continental-194_END-20190225T054500Z_C-20190227T001343Z.nc",
+            # "IMOS_ANMN-WA_AETVZ_20190307T080000Z_WATR20_FV01_WATR20-1903-Continental-194_END-20190911T003144Z_C-20200114T045053Z.nc",
+            # "IMOS_ANMN-WA_AETVZ_20190926T080000Z_WATR20_FV01_WATR20-1909-Continental-194_END-20200326T030000Z_C-20200420T064334Z.nc",
         ]
         base = "http://thredds.aodn.org.au/thredds/fileServer/IMOS/ANMN/WA/WATR20/Velocity/"
 
@@ -262,15 +270,21 @@ def get_current_timeseries(
         # load and merge
         xds = [xr.open_dataset(cache_folder / f) for f in files]
         vars = [
-            'VCUR', 'UCUR', 'WCUR', 'TEMP', 'PRES_REL', 'DEPTH', 'ROLL',
+            'VCUR', 'VCUR_quality_control', 'UCUR', 'UCUR_quality_control', 'WCUR', 'WCUR_quality_control', 'TEMP', 'TEMP_quality_control', 'PRES_REL', 'PRES_REL_quality_control', 'DEPTH', 'DEPTH_quality_control', 'ROLL',
             'PITCH'
         ]
         xds2 = [x[vars].isel(HEIGHT_ABOVE_SENSOR=18) for x in xds]
         xd = xr.concat(xds2, dim='TIME')
-        xd = xd.where(xd.DEPTH > 150)  # remove outliers
+        xd = xd.where(
+            (xd.DEPTH > 150) & (xd.VCUR_quality_control < 2) & (xd.UCUR_quality_control < 2) &
+            (xd.PRES_REL_quality_control < 2)  &
+            (xd.TEMP_quality_control < 2)  
+            )  # remove bad data
 
         xd['TIME'] = xd['TIME'].dt.round('10T')
         xd = xd.dropna(dim='TIME', subset=['VCUR', 'UCUR', 'WCUR'])
+        xd['SPD'] = np.sqrt(xd.VCUR**2 + xd.UCUR**2)
+        # xd = xd.resample(TIME='10T').first() # slow
 
         # Generate tidal freqs
         t = xd.TIME.to_series()
@@ -280,6 +294,8 @@ def get_current_timeseries(
         xd = xd.merge(df_eta)
 
         dset_to_nc(xd, outfile)
+    else:
+        logger.debug(f'Using cached file "{outfile}"')
     return outfile
 
 
@@ -301,16 +317,29 @@ class IMOSCurrentsVel(RegressionForecastData):
         'MK3', 'MM', 'SSA', 'SA'
     ]
 
+    def clear_cache(self):
+        super().clear_cache()
+        cache_file2 = self.datasets_root / 'MOS_ANMN-WA_AETVZ_WATR20_FV01_WATR20-1909-Continental-194_currents.nc'
+        print(f'rm {cache_file2}')
+        os.remove(cache_file2)
+
     def download(self):
         outfile = self.datasets_root / 'MOS_ANMN-WA_AETVZ_WATR20_FV01_WATR20-1909-Continental-194_currents.nc'
         get_current_timeseries(outfile=outfile)
 
         # made in previous notebook
         xd = xr.load_dataset(outfile)
-        df = xd.to_dataframe().drop(
-            columns=['HEIGHT_ABOVE_SENSOR', 'NOMINAL_DEPTH'])
+        df = xd.to_dataframe()
         df['SPD'] = np.sqrt(df.VCUR**2 + df.UCUR**2)
+        df = df[['VCUR',  'UCUR', 'WCUR', 'TEMP',  'DEPTH', 'M2',
+       'S2', 'N2', 'K2', 'K1', 'O1', 'P1', 'Q1', 'M4', 'M6', 'S4', 'MK3', 'MM',
+       'SSA', 'SA', 'SPD']]
         df.dropna(subset=self.columns_target, inplace=True)
-        df = df.resample('30T').first().loc['2011':'2015-03']
+
+        # Only keep parts with at most 5 nans in last 48 periods
+        has_past = df.SPD.isna().rolling(48).sum()<5
+        df = df[has_past]
+
+        df = df.resample('10T').first()
 
         return df

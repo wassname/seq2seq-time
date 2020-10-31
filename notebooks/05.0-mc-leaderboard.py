@@ -48,6 +48,11 @@
 # %aimport -tqdm
 # %matplotlib inline
 
+import warnings
+warnings.simplefilter('once')
+warnings.simplefilter(action='ignore', category=FutureWarning)
+warnings.simplefilter(action='ignore', category=DeprecationWarning)
+
 # +
 # Imports
 import torch
@@ -61,44 +66,30 @@ import xarray as xr
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-plt.rcParams['figure.figsize'] = (10.0, 2.0)
-plt.style.use('ggplot')
 
 from pathlib import Path
 from tqdm.auto import tqdm
 
 import pytorch_lightning as pl
-# -
-
-
-
-import warnings
-warnings.simplefilter('once')
-warnings.simplefilter(action='ignore', category=FutureWarning)
-warnings.simplefilter(action='ignore', category=DeprecationWarning)
-
-from seq2seq_time.data.dataset import Seq2SeqDataSet, Seq2SeqDataSets
-from seq2seq_time.predict import predict, predict_multi
-from seq2seq_time.util import dset_to_nc
-
-import logging, sys
-# logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-
 # +
 import holoviews as hv
 from holoviews import opts
 from holoviews.operation.datashader import datashade, dynspread
-hv.extension('bokeh', inline=False)
+hv.extension('bokeh', inline=True)
 from seq2seq_time.visualization.hv_ggplot import ggplot_theme
 hv.renderer('bokeh').theme = ggplot_theme
 
 # holoview datashader timeseries options
-# %opts RGB [width=800 height=200 show_grid=True active_tools=["xwheel_zoom"] default_tools=["xpan","xwheel_zoom", "reset"] toolbar="right"]
-# %opts Curve [width=800 height=200 show_grid=True active_tools=["xwheel_zoom"] default_tools=["xpan","xwheel_zoom", "reset"] toolbar="right"]
-# %opts Scatter [width=800 height=200 show_grid=True active_tools=["xwheel_zoom"] default_tools=["xpan","xwheel_zoom", "reset"] toolbar="right"]
+# %opts RGB [width=800 height=200 show_grid=True active_tools=["xwheel_zoom"] default_tools=["xpan","xwheel_zoom", "reset", "hover"] toolbar="right"]
+# %opts Curve [width=800 height=200 show_grid=True active_tools=["xwheel_zoom"] default_tools=["xpan","xwheel_zoom", "reset", "hover"] toolbar="right"]
+# %opts Scatter [width=800 height=200 show_grid=True active_tools=["xwheel_zoom"] default_tools=["xpan","xwheel_zoom", "reset", "hover"] toolbar="right"]
 # %opts Layout [width=800 height=200]
 # -
 
+
+from seq2seq_time.data.dataset import Seq2SeqDataSet, Seq2SeqDataSets
+from seq2seq_time.predict import predict, predict_multi
+from seq2seq_time.util import dset_to_nc
 
 # ## Parameters
 
@@ -106,13 +97,10 @@ hv.renderer('bokeh').theme = ggplot_theme
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f'using {device}')
 
-columns_target=['energy(kWh/hh)']
 window_past = 48*2
 window_future = 48*2
 batch_size = 128
-num_workers = 5
-freq = '30T'
-max_rows = 5e5
+num_workers = 4
 datasets_root = Path('../data/processed/')
 window_past
 
@@ -169,8 +157,7 @@ def hv_plot_prediction(d):
     return p
 
 
-# -
-
+# +
 def plot_performance(ds_preds, full=False):
     """Multiple plots using xr_preds"""
     p = hv_plot_prediction(ds_preds.isel(t_source=10))
@@ -205,6 +192,7 @@ def plot_performance(ds_preds, full=False):
         true_vs_pred = dynspread(true_vs_pred)
         true_vs_pred
         display(true_vs_pred)
+
 def plot_hist(trainer):
     try:
         df_hist = pd.read_csv(trainer.logger.experiment.metrics_file_path)
@@ -241,20 +229,23 @@ def df_bold_min(data):
         return pd.DataFrame(np.where(is_min, attr, ''),
                             index=data.index, columns=data.columns)
     
-def display_results(results, metric='nll', strformat="{:2.2f}"):
+def format_results(results, metric=None):
     df_results = pd.concat({k:pd.DataFrame(v) for k,v in results.items()}).T
-    df_results = df_results.rename_axis(index='models', columns=metric)
+    if metric:
+        return df_results.xs(metric, axis=1, level=1).rename_axis(columns=metric)
+    return df_results
+
+def display_results(results, metric='nll', strformat="{:.2f}"):
+    df_results = format_results(results, metric=metric)
     
     # display metric
     display(df_results
-            .xs(metric, axis=1, level=1)
             .style.format(strformat)
             .apply(df_bold_min)
            )
-    return df_results
-
-
 # -
+
+
 
 # ## Datasets
 
@@ -264,10 +255,6 @@ from seq2seq_time.data.data import IMOSCurrentsVel, AppliancesEnergyPrediction, 
 datasets = [BejingPM25, GasSensor, AppliancesEnergyPrediction, MetroInterstateTraffic, IMOSCurrentsVel]
 datasets
 # -
-
-
-
-
 
 
 
@@ -341,7 +328,10 @@ from pytorch_lightning.loggers import CSVLogger
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 
-# Models
+# # Models
+
+# +
+
 from seq2seq_time.models.lstm_seq2seq import LSTMSeq2Seq
 from seq2seq_time.models.lstm_seq import LSTMSeq
 from seq2seq_time.models.lstm import LSTM
@@ -354,6 +344,8 @@ from seq2seq_time.models.neural_process import RANP
 from seq2seq_time.models.transformer_process import TransformerProcess
 from seq2seq_time.models.tcn import TCNSeq2Seq
 # ## Plots
+
+
 # +
 import gc
 
@@ -409,11 +401,6 @@ models = [
 
 
 
-# ## Train
-
-from collections import defaultdict
-results = defaultdict(dict)
-
 # +
 # Summarize each models shape and weights
 Dataset = datasets[0]
@@ -434,8 +421,13 @@ for m_fn in models:
         df_summary, df_total = summary(pt_model, x_past, y_past, x_future, y_future, print_summary=False)
     sizes.append(df_total.rename(columns={'Totals':model_name}))
 df_model_sizes = pd.concat(sizes, 1)
-df_model_sizes
+df_model_sizes.style.format(pd.io.formats.format.EngFormatter(use_eng_prefix=True))
 # -
+# ## Train
+
+from collections import defaultdict
+results = defaultdict(dict)
+
 
 
 
@@ -450,8 +442,8 @@ for Dataset in datasets:
 
     # Init data
     x_past, y_past, x_future, y_future = ds_train.get_rows(10)
-    input_size = x_past.shape[-1]
-    output_size = y_future.shape[-1]
+    xs = x_past.shape[-1]
+    ys = y_future.shape[-1]
 
     # Loaders
     dl_train = DataLoader(ds_train,
@@ -467,7 +459,7 @@ for Dataset in datasets:
     for m_fn in models:
         try:
             free_mem()
-            pt_model = m_fn()
+            pt_model = m_fn(xs, ys)
             model_name = type(pt_model).__name__
             print(dataset_name, model_name)
 
@@ -486,7 +478,7 @@ for Dataset in datasets:
                 amp_level='O1',
                 precision=16,
                 
-                limit_train_batches=500,
+                limit_train_batches=800,
                 limit_val_batches=150,
                 logger=CSVLogger("../outputs", name=f'{dataset_name}_{model_name}'),
                 callbacks=[
@@ -527,37 +519,22 @@ for Dataset in datasets:
 df_results = pd.concat({k:pd.DataFrame(v) for k,v in results.items()})
 display(df_results)
 # -
-
-
-
-print(f'Negative Log-Likelihood (NLL).\nover {window_future} steps')
-# df_results = pd.concat({k:pd.DataFrame(v) for k,v in results.items()})
-df_results
-results
-
 # # Leaderboard
 
-
-
-
-
-print(f'Symmetric mean absolute percentage error (SMAPE)\nover {window_future} steps')
+print(f'Negative Log-Likelihood (NLL).\nover {window_future} steps')
+df_results = pd.concat({k:pd.DataFrame(v) for k,v in results.items()})
 display_results(results, 'nll')
+
 # # Plots
-
-
-
-
 
 # +
 
-# # plots
 # Load saved preds
 ds_predss = defaultdict(dict)
 for Dataset in datasets:
     dataset_name = Dataset.__name__
     for m_fn in models:
-        pt_model = m_fn()
+        pt_model = m_fn(xs, ys)
         model_name = type(pt_model).__name__
 
         checkpoint_name = f"{dataset_name}_{model_name}"
@@ -594,6 +571,9 @@ for i, model in enumerate(ds_predss[dataset].keys()):
 n.cols(1)
 
 plot_performance(ds_preds, full=True)
+
+
+
 
 
 

@@ -13,7 +13,17 @@ def normalize_encode_dataframe(df, encoder=OrdinalEncoder):
     df_norm = scaler.fit_transform(df)
     return df_norm, scaler
     
-def timeseries_split(df, test_fraction=0.2):
+def timeseries_split(df, test_fraction=0.2, dropna=None):
     """Split timeseries data with test in the future"""
-    i = int(len(df)*test_fraction)
-    return df.iloc[:-i], df.iloc[-i:]
+    
+    # If there are lots of nan's we can ignore them when splitting into portions
+    if isinstance(dropna, list):
+        index = df.dropna(subset=dropna).index
+    elif dropna is True:
+        index = df.dropna().index
+    else:
+        index = df.index
+    
+    i = int(len(index)*test_fraction)
+    dt = index.values[i]
+    return df.loc[:dt], df.loc[dt:]

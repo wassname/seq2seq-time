@@ -37,6 +37,7 @@ class Seq2SeqDataSet(torch.utils.data.Dataset):
         self.window_past = window_past
         self.window_future = window_future
         self.columns_target = columns_target
+        self.columns_past = columns_past
 
         # For speed
         self._icol_blank = [df.drop(columns = columns_target).columns.tolist().index(n) for n in columns_past]
@@ -84,6 +85,9 @@ class Seq2SeqDataSet(torch.utils.data.Dataset):
         """
         Output pandas dataframes for display purposes.
         """
+        if i<0:
+            # Handle negative integers
+            i = len(self)+i
         x_cols = list(self.df.drop(columns=self.columns_target).columns) + ['tsp_days', 'is_past']
         x_past, y_past, x_future, y_future = self.get_components(i)
         t_past = self.df.index[i:i+self.window_past]
