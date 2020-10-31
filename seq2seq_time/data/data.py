@@ -45,7 +45,7 @@ class RegressionForecastData:
         return df_norm, scaler
     
     def split(self, df_norm: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        df_train, df_test = timeseries_split(df_norm)
+        df_train, df_test = timeseries_split(df_norm, 0.3)
         df_test, df_val  = timeseries_split(df_test, 0.5)
         return df_train, df_val, df_test
     
@@ -311,6 +311,6 @@ class IMOSCurrentsVel(RegressionForecastData):
             columns=['HEIGHT_ABOVE_SENSOR', 'NOMINAL_DEPTH'])
         df['SPD'] = np.sqrt(df.VCUR**2 + df.UCUR**2)
         df.dropna(subset=self.columns_target, inplace=True)
-        df = df.resample('30T').first()[:'2015']
+        df = df.resample('30T').first().loc['2011':'2015-03']
 
         return df
