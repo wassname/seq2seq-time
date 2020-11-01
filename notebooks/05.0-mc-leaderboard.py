@@ -98,8 +98,8 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f'using {device}')
 
 window_past = 48*2
-window_future = 48*2
-batch_size = 128
+window_future = 48
+batch_size = 16
 num_workers = 4
 datasets_root = Path('../data/processed/')
 window_past
@@ -356,10 +356,10 @@ def free_mem():
 
 
 # +
-hidden_size = 32
-dropout=0.25
-layers=6
-nhead=8
+hidden_size = 16
+dropout=0.0
+layers=8
+nhead=2
 
 models = [
     lambda xs, ys: BaselineLast(),
@@ -478,8 +478,8 @@ for Dataset in datasets:
                 amp_level='O1',
                 precision=16,
                 
-                limit_train_batches=800,
-                limit_val_batches=150,
+                limit_train_batches=1200,
+                limit_val_batches=250,
                 logger=CSVLogger("../outputs", name=f'{dataset_name}_{model_name}'),
                 callbacks=[
                     EarlyStopping(monitor='loss/val', patience=patience * 2),
@@ -573,8 +573,23 @@ n.cols(1)
 plot_performance(ds_preds, full=True)
 
 
+def plot_at_i(data_i):
+    d = ds_preds.isel(t_source=data_i)
+    return hv_plot_prediction(d).relabel(label=f"{model}")
+dmap = hv.DynamicMap(plot_at_i, kdims=['t_source'])
+t = ds_preds.t_source.values
+dmap = dmap.redim.values(t_source=range(len(t)))
+dmap.opts(framewise=True)
 
-
+# Plot series of predictions
+t_ahead_i=6
+d = ds_preds.isel(t_ahead=t_ahead_i)
+p = datashade(hv.Scatter({
+    'x': d.t_target,
+    'y': d.y_true
+}, label='true').opts(color='black'), cmap='black')
+p *= datashade(hv.Curve({'x': d.t_target, 'y':d.y_pred}), cmap='blue')
+p.opts(title=f'ahead by {d.freq} * {t_ahead_i}')
 
 
 

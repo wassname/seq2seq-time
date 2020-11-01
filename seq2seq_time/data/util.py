@@ -24,6 +24,6 @@ def timeseries_split(df, test_fraction=0.2, dropna=None):
     else:
         index = df.index
     
-    i = int(len(index)*test_fraction)
+    i = int(len(index)*(1- test_fraction))
     dt = index.values[i]
     return df.loc[:dt], df.loc[dt:]
