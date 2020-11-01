@@ -87,6 +87,8 @@ class RegressionForecastData:
 
 class GasSensor(RegressionForecastData):
     """
+    A metal oxide (MOX) gas sensor exposed during 3 weeks to mixtures of carbon monoxide and humid synthetic air in a gas chamber.
+	
     See: http://archive.ics.uci.edu/ml/datasets/Gas+sensor+array+temperature+modulation
     """
     
@@ -120,6 +122,8 @@ class GasSensor(RegressionForecastData):
 
 class MetroInterstateTraffic(RegressionForecastData):
     """
+    Hourly traffic volume for Interstate 94 (I-94) in the U.S. state of Minnesota. Includes weather and holiday features from 2012-2018.
+	
     See: https://archive.ics.uci.edu/ml/datasets/Metro+Interstate+Traffic+Volume
     """
     
@@ -158,6 +162,8 @@ class MetroInterstateTraffic(RegressionForecastData):
 
 class AppliancesEnergyPrediction(RegressionForecastData):
     """
+    Appliances energy use in a low energy building.
+
     See: https://archive.ics.uci.edu/ml/datasets/Appliances+energy+prediction
     """
     
@@ -193,7 +199,12 @@ class AppliancesEnergyPrediction(RegressionForecastData):
 
 class BejingPM25(RegressionForecastData):
     """
-    See: http://archive.ics.uci.edu/ml/datasets/Beijing+PM2.5+Data
+    PM2.5 data of US Embassy in Beijing. This measures smoke as well as some pollen, fog, and dust particles of a certain size. Weather data from a nearby airport are included.
+	
+
+    See: 
+    - http://archive.ics.uci.edu/ml/datasets/Beijing+PM2.5+Data
+    - https://en.wikipedia.org/wiki/Particulates
     """
     
     columns_target = ['log_pm2.5']
@@ -305,11 +316,11 @@ def get_current_timeseries(
 class IMOSCurrentsVel(RegressionForecastData):
     """
     
-    Current Speed at ANMN Two Rocks, WA, 204m mooring
+    Current Speed at Two Rocks, Western Australia, with a water depth of 200 m. The mooring is located at Lat -31.719 Lon 115.03. Has tidal periods as features.
     
     see:
+    - https://catalogue-imos.aodn.org.au/geonetwork/srv/api/records/bbfc20d3-0e98-40a8-bd8a-3f7717eafb6d
     - http://thredds.aodn.org.au/thredds/fileServer/IMOS/ANMN/WA/WATR20/Velocity/
-    from https://catalogue-imos.aodn.org.au/geonetwork/srv/api/records/ae86e2f5-eaaf-459e-a405-e654d85adb9c
     and http://thredds.aodn.org.au/thredds/catalog/IMOS/ANMN/WA/WATR20/Velocity/catalog.html
     And https://en.wikipedia.org/wiki/Theory_of_tides
     """

@@ -73,9 +73,21 @@ To ensure a robust score we use multiple multivariate regression timeseries.
 For more see [notebooks/01.0-mc-datasets.ipynb](notebooks/01.0-mc-datasets.ipynb)
 
 ![](reports/figures/data_batches_appliances.png)
+
+30 minute, current speed at Two Rocks 200m Mooring. Has tidal periods as extra features.
+
 ![](reports/figures/data_batches_currents.png)
+
+A metal oxide (MOX) gas sensor exposed during 3 weeks to mixtures of carbon monoxide and humid synthetic air in a gas chamber.
+
 ![](reports/figures/data_batches_gas.png)
+
+Hourly PM2.5 data of US Embassy in Beijing. This measures smoke as well as some pollen, fog, and dust particles of a certain size. Weather data from a nearby airport are included.
+
 ![](reports/figures/data_batches_pm25.png)
+
+Hourly Minneapolis-St Paul, MN traffic volume for westbound I-94. Includes weather and holiday features from 2012-2018.
+	
 ![](reports/figures/data_batches_traffice.png)
 
 
