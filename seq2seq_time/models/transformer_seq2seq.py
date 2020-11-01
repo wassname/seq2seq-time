@@ -64,9 +64,8 @@ class TransformerSeq2Seq(nn.Module):
         # In transformers the memory and future_x need to be the same length. Lets use a permutation invariant agg on the context
         # Then expand it, so it's available as we decode, conditional on future_x
         # (C, B, emb_dim) -> (B, emb_dim) -> (T, B, emb_dim)
-        # In transformers the memory and future_x need to be the same length. Lets use a permutation invariant agg on the context
-        # Then expand it, so it's available as we decode, conditional on future_x
-        memory = memory.max(dim=0, keepdim=True)[0].expand_as(future_x)
+        S, B, H = future_x.shape
+        memory = memory.max(dim=0, keepdim=True)[0].repeat(1, S, 1)
         outputs = self.decoder(future_x, memory, tgt_key_padding_mask=tgt_key_padding_mask)
         
         # [T, B, emb_dim] -> [B, T, emb_dim]
