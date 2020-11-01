@@ -82,6 +82,9 @@ class RegressionForecastData:
     def __repr__(self):
         return f'<{type(self).__name__} {self.df.shape if (self.df is not None) else None}>'
 
+    def __len__(self):
+        return len(self.df.dropna(subset=self.columns_target))
+
 class GasSensor(RegressionForecastData):
     """
     See: http://archive.ics.uci.edu/ml/datasets/Gas+sensor+array+temperature+modulation
@@ -330,7 +333,6 @@ class IMOSCurrentsVel(RegressionForecastData):
         # made in previous notebook
         xd = xr.load_dataset(outfile)
         df = xd.to_dataframe()
-        df['SPD'] = np.sqrt(df.VCUR**2 + df.UCUR**2)
         df = df[['VCUR',  'UCUR', 'WCUR', 'TEMP',  'DEPTH', 'M2',
        'S2', 'N2', 'K2', 'K1', 'O1', 'P1', 'Q1', 'M4', 'M6', 'S4', 'MK3', 'MM',
        'SSA', 'SA', 'SPD']]
@@ -340,6 +342,6 @@ class IMOSCurrentsVel(RegressionForecastData):
         has_past = df.SPD.isna().rolling(48).sum()<5
         df = df[has_past]
 
-        df = df.resample('10T').first()
+        df = df.resample('30T').mean()
 
         return df

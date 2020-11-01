@@ -66,7 +66,21 @@ Using sequence to sequence interfaces for timeseries regression
   </tbody>
 </table>
 
-Project Organization
+## Datasets
+
+To ensure a robust score we use multiple multivariate regression timeseries.
+
+For more see [notebooks/01.0-mc-datasets.ipynb](notebooks/01.0-mc-datasets.ipynb)
+
+![](reports/figures/data_batches_appliances.png)
+![](reports/figures/data_batches_currents.png)
+![](reports/figures/data_batches_gas.png)
+![](reports/figures/data_batches_pm25.png)
+![](reports/figures/data_batches_traffice.png)
+
+
+
+## Project Organization
 ------------
 
     ├── LICENSE
@@ -84,7 +98,7 @@ Project Organization
     ├── reports            <- Generated analysis as HTML, PDF, LaTeX, etc.
     │   └── figures        <- Generated graphics and figures to be used in reporting
     │
-    ├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
+    ├── requirements       <- The requirements folder for reproducing the analysis environment, e.g.
     │                         generated with `pip freeze > requirements.txt`
     │
     ├── setup.py           <- makes project pip installable (pip install -e .) so src can be imported
@@ -96,3 +110,7 @@ Project Organization
 --------
 
 <p><small>Project based on the <a target="_blank" href="https://drivendata.github.io/cookiecutter-data-science/">cookiecutter data science project template</a>. #cookiecutterdatascience</small></p>
+
+```python
+
+```
