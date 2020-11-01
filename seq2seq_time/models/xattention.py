@@ -48,7 +48,7 @@ class CrossAttention(nn.Module):
 
         x = self.enc_emb(x).permute(1, 0, 2)
 
-        B, S, _ = x.shape
+        S, B, _ = x.shape
         mask = mask_upper_triangular(S, device)
         
         outputs = self.encoder(x, mask=mask#, src_key_padding_mask=x_key_padding_mask

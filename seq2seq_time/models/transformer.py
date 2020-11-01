@@ -40,12 +40,6 @@ class Transformer(nn.Module):
         target = torch.cat([future_x, future_y_fake], -1).detach()
         x = torch.cat([context, target * 1], 1).detach()
 
-        # Masks
-        x_mask = torch.isfinite(x) & (x != self.nan_value)
-        x[~x_mask] = 0
-        x = x.detach()
-        x_key_padding_mask = ~x_mask.any(-1)
-
         x = self.enc_emb(x).permute(1, 0, 2)
 
         S, B, _ = x.shape

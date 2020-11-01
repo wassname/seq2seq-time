@@ -145,7 +145,7 @@ class TemporalConvNet(nn.Module):
         return out
 
 
-class TCNSeq2Seq(nn.Module):
+class TCNSeq(nn.Module):
     """
     See:
     - https://arxiv.org/pdf/1803.01271.pdf
