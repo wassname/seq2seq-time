@@ -78,12 +78,11 @@ from seq2seq_time.data.data import IMOSCurrentsVel, AppliancesEnergyPrediction, 
 datasets = [IMOSCurrentsVel, BejingPM25, GasSensor, AppliancesEnergyPrediction, MetroInterstateTraffic, ]
 datasets
 # -
-
-
 for dataset in datasets:
     d = dataset(datasets_root)
     display(HTML(f"<h3>{dataset.__name__}</h3>"))
     print(d.__doc__)
+    print(f'{len(d)} rows at freq{d.index.freq.freqstr}')
     print('columns_forecast', d.columns_forecast)
     print('columns_past', d.columns_past)
     print('columns_target', d.columns_target)
@@ -177,3 +176,5 @@ ds_train, ds_val, ds_test = d.to_datasets(window_past=window_past,
 for dataset in datasets:
     d = dataset(datasets_root)
     display(plot_batches_x(d))
+
+
