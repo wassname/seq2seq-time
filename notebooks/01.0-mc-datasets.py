@@ -14,17 +14,6 @@
 #     name: seq2seq-time
 # ---
 
-# OPTIONAL: Load the "autoreload" extension so that code can change. But blacklist large modules
-# %load_ext autoreload
-# %autoreload 2
-# %aimport -pandas
-# %aimport -torch
-# %aimport -numpy
-# %aimport -matplotlib
-# %aimport -dask
-# %aimport -tqdm
-# %matplotlib inline
-
 # +
 import xarray as xr
 import pandas as pd
@@ -34,17 +23,11 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from tqdm.auto import tqdm
 from IPython.display import display, HTML
-# -
-import warnings
-warnings.simplefilter('once')
-warnings.simplefilter(action='ignore', category=FutureWarning)
-warnings.simplefilter(action='ignore', category=DeprecationWarning)
-
 # +
 import holoviews as hv
 from holoviews import opts
 from holoviews.operation.datashader import datashade, dynspread
-hv.extension('bokeh', inline=True)
+hv.extension('bokeh')
 from seq2seq_time.visualization.hv_ggplot import ggplot_theme
 hv.renderer('bokeh').theme = ggplot_theme
 hv.archive.auto()
@@ -59,15 +42,10 @@ hv.archive.auto()
 
 # ## Parameters
 
-# +
-# # device = "cuda" if torch.cuda.is_available() else "cpu"
-# print(f'using {device}')
-
 window_past = 48*2
 window_future = 48
 batch_size = 4
 datasets_root = Path('../data/processed/')
-# -
 
 # ## Plot helpers
 
@@ -89,12 +67,12 @@ def plot_batch_y(ds, i):
     p *= hv.VLine(now).relabel('now').opts(color='red')
     return p
 
-def plot_batches_y(dataset, window_past=window_past, window_future=window_future):
+def plot_batches_y(dataset, window_past=window_past, window_future=window_future, n = 4):
     ds_name = type(dataset).__name__
     opts=dict(width=200, height=100, xaxis=None, yaxis=None)
     ds_train, ds_val, ds_test = d.to_datasets(window_past=window_past,
                                               window_future=window_future)
-    n = 4
+    
     max_i = min(len(ds_train), len(ds_val), len(ds_test))
     ii = list(np.linspace(0, max_i-10, n-1).astype(int)) + [-1]
     l = hv.Layout()
@@ -110,66 +88,63 @@ def plot_batches_y(dataset, window_past=window_past, window_future=window_future
 for dataset in datasets:
     d = dataset(datasets_root)
     display(HTML(f"<h3>{dataset.__name__}</h3>"))
-    print(d.__doc__)
-    print(f'{len(d)} rows at freq{d.df.index.freq.freqstr}')
-    print('columns_forecast', d.columns_forecast)
-    print('columns_past', d.columns_past)
-    print('columns_target', d.columns_target)
-    print
-    display(d.df)
+    print('Description:', d.__doc__)
+    print(f'Stats:\n\t{len(d)} rows at freq: "{d.df.index.freq.freqstr}"')
+    print('\tcolumns_forecast:', d.columns_forecast)
+    print('\tcolumns_past:', d.columns_past)
+    print('\tcolumns_target:', d.columns_target)
+    with pd.option_context("display.max_rows", 4, "display.max_columns", 20):
+        display(d.df)
+    display(plot_batches_y(d, n=2).opts(title=''))
 
 
 
-# View train, test, val splits
-l = hv.Layout()
-for dataset in datasets:
-    d = dataset(datasets_root)
-    
-    
-    p = dynspread(
-        datashade(hv.Scatter(d.df_train[d.columns_target[0]]),
-                  cmap='red'))
-    p *= dynspread(
-        datashade(hv.Scatter(d.df_val[d.columns_target[0]]),
-                  cmap='green'))
-    p *= dynspread(
-        datashade(hv.Scatter(d.df_test[d.columns_target[0]]),
-                  cmap='blue'))
-    p = p.opts(title=f"{dataset.__name__}, n={len(d)}, freq={d.df.index.freq.freqstr}")
-    display(p)
 
 
 
-# View train, test, val splits
+
+# View with x and y col
 for dataset in datasets:
     ds_name = type(dataset).__name__
     d = dataset(datasets_root)
     print(d)
-    display(plot_batches_y(d))
+    ds_train, ds_val, ds_test = d.to_datasets(window_past=window_past,
+                                          window_future=window_future)
+
+    display(plot_batch_y(ds_train, 10))
+
+
 
 # +
-# def plot_batch_x(ds, i):
-#     """Plot input features"""
-#     x_past, y_past, x_future, y_future = ds.get_rows(i)
-#     x = pd.concat([x_past, x_future])
-#     p = hv.NdOverlay({
-#         col: hv.Curve(x[col]) for col in x.columns
-#     }, kdims='column')
-#     now = y_past.index[-1]
-#     p *= hv.VLine(now).relabel('now').opts(color='red')
-#     return p
-
-# def plot_batches_x(d):
-#     """Plot input features for multiple batch"""
-#     ds_train, ds_val, ds_test = d.to_datasets(window_past=window_past,
-#                                               window_future=window_future)
-#     l = plot_batch_x(ds_train, 10) + plot_batch_x(ds_val, 10) + plot_batch_x(ds_test, 10)
-#     l = l.cols(1).opts(shared_axes=False, title=f'{type(d).__name__}')
-#     return l
+# # View train, test, val splits
+# for dataset in datasets:
+#     ds_name = type(dataset).__name__
+#     d = dataset(datasets_root)
+#     print(d)
+#     display(plot_batches_y(d))
 
 # +
-# ds_train, ds_val, ds_test = d.to_datasets(window_past=window_past,
-#                                           window_future=window_future)
+def plot_batch_x(ds, i):
+    """Plot input features"""
+    x_past, y_past, x_future, y_future = ds.get_rows(i)
+    x = pd.concat([x_past, x_future])
+    p = hv.NdOverlay({
+        col: hv.Curve(x[col]) for col in x.columns
+    }, kdims='column')
+    now = y_past.index[-1]
+    p *= hv.VLine(now).relabel('now').opts(color='red')
+    return p
+
+def plot_batches_x(d):
+    """Plot input features for multiple batch"""
+    ds_train, ds_val, ds_test = d.to_datasets(window_past=window_past,
+                                              window_future=window_future)
+    l = plot_batch_x(ds_train, 10) + plot_batch_x(ds_val, 10) + plot_batch_x(ds_test, 10)
+    l = l.cols(1).opts(shared_axes=False, title=f'{type(d).__name__}')
+    return l
+# -
+
+
 
 # +
 # # View input columns
@@ -181,6 +156,25 @@ for dataset in datasets:
 hv.archive.export()
 hv.archive.last_export_status()
 
+# +
+hv.archive.auto(enabled=False) # We can't capture dynamic plots
+# View train, test, val splits
 
+for dataset in datasets:
+    d = dataset(datasets_root)
+    
+    p = hv.Layout()
+    p += dynspread(
+        datashade(hv.Scatter(d.df_train[d.columns_target[0]]),
+                  cmap='red'))
+    p *= dynspread(
+        datashade(hv.Scatter(d.df_val[d.columns_target[0]]),
+                  cmap='green'))
+    p *= dynspread(
+        datashade(hv.Scatter(d.df_test[d.columns_target[0]]),
+                  cmap='blue'))
+    p = p.opts(title=f"{dataset.__name__}, n={len(d)}, freq={d.df.index.freq.freqstr}")
+    display(p)
+# -
 
 

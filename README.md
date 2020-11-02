@@ -1,96 +1,62 @@
 seq2seq-time
 ==============================
 
-Using sequence to sequence interfaces for timeseries regression
+Using sequence to sequence (and normal) interfaces for multivariate timeseries regression.
 
+Since this is a deep learning approach it's hard to do hyperparameter optimisation for every model, so be aware that these are only indicative number. The most interesting results are which models are robust, and which models fail for certain dataset.
+
+NOTE: This is a work in progress, with out final numbers...
 
 <img src="reports/figures/Seq2Seq for regression.png" />
-<table border="1" class="dataframe">
-  <thead>
-    <tr style="text-align: right;">
-      <th></th>
-      <th>BaselineLast</th>
-      <th>RANP</th>
-      <th>LSTM</th>
-      <th>LSTMSeq2Seq</th>
-      <th>TransformerSeq2Seq</th>
-      <th>TransformerProcess</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <th>IMOSCurrentsVel</th>
-      <td>1.63</td>
-      <td>23.31</td>
-      <td>19.44</td>
-      <td>14.52</td>
-      <td>46.98</td>
-      <td>7.35</td>
-    </tr>
-    <tr>
-      <th>BejingPM25</th>
-      <td>1.71</td>
-      <td>1.48</td>
-      <td>1.41</td>
-      <td>1.39</td>
-      <td>2.86</td>
-      <td>1.44</td>
-    </tr>
-    <tr>
-      <th>GasSensor</th>
-      <td>1.88</td>
-      <td>-2.24</td>
-      <td>16.40</td>
-      <td>-1.53</td>
-      <td>NaN</td>
-      <td>0.63</td>
-    </tr>
-    <tr>
-      <th>AppliancesEnergyPrediction</th>
-      <td>1.56</td>
-      <td>1.31</td>
-      <td>1.94</td>
-      <td>1.57</td>
-      <td>2.33</td>
-      <td>1.08</td>
-    </tr>
-    <tr>
-      <th>MetroInterstateTraffic</th>
-      <td>1.76</td>
-      <td>-0.27</td>
-      <td>-0.17</td>
-      <td>-0.25</td>
-      <td>4.15</td>
-      <td>-0.27</td>
-    </tr>
-  </tbody>
-</table>
+
+
+  
+# Results
+
+
+NOTE: Draft numbers
+
+- [ ] TODO mean over N runs
+- [ ] TODO hyperparameter opt to make sure I'm comparing optimal hidden_size
+
+|                    |   MetroInterstateTraffic |   BejingPM25 |   GasSensor |   AppliancesEnergyPrediction |   IMOSCurrentsVel |   mean(e-e_baseline) |
+|:-------------------|-------------------------:|-------------:|------------:|-----------------------------:|------------------:|---------------------:|
+| RANP               |                    -0.43 |         1.35 |       -2.31 |                         1.6  |              1.39 |                -1.1  |
+| LSTMSeq2Seq        |                    -0.01 |         1.28 |       -0.82 |                         1.67 |              0.93 |                -0.81 |
+| Transformer        |                    -0.28 |         1.88 |       -2.28 |                         2.52 |              1.75 |                -0.7  |
+| LSTM               |                     0.03 |         1.35 |       -0.38 |                         1.66 |              1.37 |                -0.61 |
+| TransformerProcess |                    -0.36 |         1.49 |       -0.84 |                         1.65 |              2.39 |                -0.55 |
+| InceptionTimeSeq   |                    -0.23 |         1.5  |       -0.8  |                         2.41 |              2.95 |                -0.25 |
+| TransformerSeq2Seq |                     0.2  |         1.96 |        0.44 |                         1.88 |              2.38 |                -0.05 |
+| BaselineMean       |                     1.43 |         1.59 |        1.54 |                         1.42 |              1.1  |                 0    |
+| TCNSeq             |                    -0.27 |         2.22 |       -0.6  |                         5.27 |              0.96 |                 0.1  |
+| BaselineLast       |                     1.75 |         1.59 |        1.87 |                         1.57 |              0.93 |                 0.12 |
 
 ## Datasets
 
 To ensure a robust score we use multiple multivariate regression timeseries.
 
-For more see [notebooks/01.0-mc-datasets.ipynb](notebooks/01.0-mc-datasets.ipynb)
+For more see [notebooks/01.0-mc-datasets.ipynb](notebooks/01.0-mc-datasets.ipynb) or [notebooks/01.0-mc-datasets/index.html](notebooks/01.0-mc-datasets/index.html)
 
 ![](reports/figures/data_batches_appliances.png)
 
-30 minute, current speed at Two Rocks 200m Mooring. Has tidal periods as extra features.
+Applience energy usage prediction.
 
 ![](reports/figures/data_batches_currents.png)
 
-A metal oxide (MOX) gas sensor exposed during 3 weeks to mixtures of carbon monoxide and humid synthetic air in a gas chamber.
+30 minute, current speed at Two Rocks 200m Mooring. Has tidal periods as extra features.
 
 ![](reports/figures/data_batches_gas.png)
 
-Hourly PM2.5 data of US Embassy in Beijing. This measures smoke as well as some pollen, fog, and dust particles of a certain size. Weather data from a nearby airport are included.
+A metal oxide (MOX) gas sensor exposed during 3 weeks to mixtures of carbon monoxide and humid synthetic air in a gas chamber.
 
 ![](reports/figures/data_batches_pm25.png)
 
+Hourly PM2.5 data of US Embassy in Beijing. This measures smoke as well as some pollen, fog, and dust particles of a certain size. Weather data from a nearby airport are included.
+
+![](reports/figures/data_batches_traffic.png)
+
 Hourly Minneapolis-St Paul, MN traffic volume for westbound I-94. Includes weather and holiday features from 2012-2018.
-	
-![](reports/figures/data_batches_traffice.png)
-
-
 
 ## Project Organization
 ------------

@@ -8,10 +8,9 @@ class CrossAttention(nn.Module):
     """
     A single transformer,  using cross attention, like in the determistic encoder in attentive neural processes.
     """
-    def __init__(self, x_dim, y_dim, attention_dropout=0, nhead=8, nlayers=8, hidden_size=32, nan_value=0, min_std=0.01):
+    def __init__(self, x_dim, y_dim, attention_dropout=0, nhead=8, nlayers=8, hidden_size=32, min_std=0.01):
         super().__init__()
         self._min_std = min_std
-        self.nan_value = nan_value
         enc_x_dim = x_dim + y_dim
 
         self.v_encoder = nn.Linear(enc_x_dim, hidden_size)
@@ -59,10 +58,10 @@ class CrossAttention(nn.Module):
         q = self.q_encoder(future_x).permute(1, 0, 2)
         v = self.v_encoder(context).permute(1, 0, 2)
 
-        # Self attention with causal mask
-        v = self.self_attn_v(v, v, v, attn_mask=past_causal_mask)[0]
-        q = self.self_attn_q(q, q, q, attn_mask=future_causal_mask)[0]
-        k = self.self_attn_k(k, k, k, attn_mask=past_causal_mask)[0]
+        # # Self attention with causal mask
+        # v = self.self_attn_v(v, v, v, attn_mask=past_causal_mask)[0]
+        # q = self.self_attn_q(q, q, q, attn_mask=future_causal_mask)[0]
+        # k = self.self_attn_k(k, k, k, attn_mask=past_causal_mask)[0]
 
         # Cross attention
         h = self.cross_attn(query=q, key=k, value=v)[0]
