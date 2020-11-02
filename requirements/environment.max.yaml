@@ -131,8 +131,6 @@ dependencies:
   - lz4-c=1.9.2=he1b5a44_3
   - markdown=3.3.1=pyh9f0ad1d_0
   - markupsafe=1.1.1=py37hb5d75c8_2
-  - matplotlib=3.3.2=py37hc8dfbb8_1
-  - matplotlib-base=3.3.2=py37hc9afd2a_1
   - mccabe=0.6.1=py_1
   - missingno=0.4.2=py_1
   - mistune=0.8.4=py37h8f50634_1002
@@ -266,16 +264,38 @@ dependencies:
   - zlib=1.2.11=h516909a_1010
   - zstd=1.4.5=h6597ccf_2
   - pip:
+    - ansicolors==1.1.8
+    - configparser==5.0.1
+    - console-progressbar==1.1.2
+    - cwrap==1.6.1
+    - docker-pycreds==0.4.0
+    - equinor-libres==6.0.0a0
+    - ert==0.2.0
+    - futures==3.1.1
+    - gitdb==4.0.5
+    - gitpython==3.1.11
+    - imageio==2.9.0
+    - libecl==2.9.2
+    - matplotlib==3.1.3
+    - nudged==0.3.1
+    - pathtools==0.1.2
+    - promise==2.3
     - pyqt5-sip==4.19.18
     - pyqtchart==5.12
     - pyqtwebengine==5.12.1
-    - pytorch-fast-transformers==0.3.0
     - pytorch-lightning-bolts==0.2.5
+    - qtpy==1.9.0
+    - sentry-sdk==0.19.1
+    - shortuuid==1.0.1
     - sklearn==0.0
     - sklearn-pandas==2.0.2
-    - torchsummaryx==1.3.0
+    - smmap==3.0.4
+    - subprocess32==3.5.4
+    - tabulate==0.8.7
+    - test-tube==0.7.5
     - ucimlr==0.3.0
     - unlzw==0.1.1
     - uptide==1.0
+    - watchdog==0.10.3
     - xlrd==1.2.0
 prefix: /home/wassname/anaconda/envs/seq2seq-time

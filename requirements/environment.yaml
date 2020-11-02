@@ -7,9 +7,31 @@ channels:
 dependencies:
   - python=3.7
   - pip
+  - tqdm
+  - pytorch
+  - torchvision
+  - cudatoolkit==10.2
+  - tabulate
+  - numpy
+  - matplotlib
+  - holoviews=1.13.4
+  - datashader=0.11.1
+  - xarray=0.16.1
+  - netcdf4=1.5.4
+  - fastparquet
+  - pytorch-lightning=1.0.2
+  - pandas=1.1.3
+  - cftime
+  - nc-time-axis
+  - torchvision
+  - scikit-learn=0.23.2
   # external requirements
   - awscli
   - pip:
-    # local package
+    # # local package
     # - -e .
+    # # pip packages
+    - test-tube==0.7.5
+    - sklearn-pandas==2.0.2
+    - uptide==1.0
 
