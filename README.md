@@ -19,18 +19,38 @@ NOTE: Draft numbers
 - [ ] TODO mean over N runs
 - [ ] TODO hyperparameter opt to make sure I'm comparing optimal hidden_size
 
-|                    |   MetroInterstateTraffic |   BejingPM25 |   GasSensor |   AppliancesEnergyPrediction |   IMOSCurrentsVel |   mean(e-e_baseline) |
-|:-------------------|-------------------------:|-------------:|------------:|-----------------------------:|------------------:|---------------------:|
-| RANP               |                    -0.43 |         1.35 |       -2.31 |                         1.6  |              1.39 |                -1.1  |
-| LSTMSeq2Seq        |                    -0.01 |         1.28 |       -0.82 |                         1.67 |              0.93 |                -0.81 |
-| Transformer        |                    -0.28 |         1.88 |       -2.28 |                         2.52 |              1.75 |                -0.7  |
-| LSTM               |                     0.03 |         1.35 |       -0.38 |                         1.66 |              1.37 |                -0.61 |
-| TransformerProcess |                    -0.36 |         1.49 |       -0.84 |                         1.65 |              2.39 |                -0.55 |
-| InceptionTimeSeq   |                    -0.23 |         1.5  |       -0.8  |                         2.41 |              2.95 |                -0.25 |
-| TransformerSeq2Seq |                     0.2  |         1.96 |        0.44 |                         1.88 |              2.38 |                -0.05 |
-| BaselineMean       |                     1.43 |         1.59 |        1.54 |                         1.42 |              1.1  |                 0    |
-| TCNSeq             |                    -0.27 |         2.22 |       -0.6  |                         5.27 |              0.96 |                 0.1  |
-| BaselineLast       |                     1.75 |         1.59 |        1.87 |                         1.57 |              0.93 |                 0.12 |
+See [notebooks/05.5-mc-leaderboard.ipynb](notebooks/05.5-mc-leaderboard.ipynb)
+
+## Negative Log Likelihood
+
+|                    |   GasSensor |   IMOSCurrentsVel |   AppliancesEnergyPrediction |   BejingPM25 |   MetroInterstateTraffic |   mean(e-e_baseline) |
+|:-------------------|------------:|------------------:|-----------------------------:|-------------:|-------------------------:|---------------------:|
+| RANP               |       -1.91 |              0.93 |                         1.25 |         1.39 |                    -0.36 |                -1.16 |
+| TransformerProcess |       -0.84 |              1.02 |                         1.17 |         1.43 |                    -0.33 |                -0.93 |
+| Transformer        |       -1.18 |              0.93 |                         1.8  |         1.31 |                    -0.37 |                -0.92 |
+| TCNSeq             |       -0.47 |              0.88 |                         1.1  |         1.28 |                    -0.15 |                -0.89 |
+| CrossAttention     |       -0.58 |              1.27 |                         1.24 |         1.45 |                    -0.34 |                -0.81 |
+| LSTMSeq2Seq        |        0    |              0.95 |                         1.2  |         1.28 |                    -0.29 |                -0.79 |
+| LSTM               |       -0.2  |              0.97 |                         1.34 |         1.29 |                    -0.05 |                -0.75 |
+| TransformerSeq2Seq |        0.69 |              1.49 |                         1.54 |         1.49 |                    -0.31 |                -0.43 |
+| InceptionTimeSeq   |       -2.07 |              1.31 |                         4.65 |         1.32 |                    -0.03 |                -0.38 |
+| BaselineMean       |        1.54 |              1.1  |                         1.41 |         1.59 |                     1.43 |                 0    |
+
+
+## Model sizes
+
+|                    | Total params   | Trainable params   |   Non-trainable params | Mult-Adds   |
+|:-------------------|:---------------|:-------------------|-----------------------:|:------------|
+| BaselineMean       | 1.0            | 1.0                |                      0 | 0.0         |
+| Transformer        | 32.562k        | 32.562k            |                      0 | 31.088k     |
+| TransformerProcess | 72.722k        | 72.722k            |                      0 | 101.088k    |
+| TCNSeq             | 6.258k         | 6.258k             |                      0 | 1.84272M    |
+| RANP               | 21.626k        | 21.626k            |                      0 | 24.256k     |
+| TransformerSeq2Seq | 71.794k        | 71.794k            |                      0 | 68.368k     |
+| LSTM               | 6.05k          | 6.05k              |                      0 | 5.664k      |
+| LSTMSeq2Seq        | 12.002k        | 12.002k            |                      0 | 11.232k     |
+| CrossAttention     | 44.642k        | 44.642k            |                      0 | 42.64k      |
+| InceptionTimeSeq   | 46.346k        | 46.346k            |                      0 | 6.543744M   |
 
 ## Datasets
 
