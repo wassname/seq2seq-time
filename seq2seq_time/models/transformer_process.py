@@ -121,8 +121,12 @@ class Decoder(nn.Module):
         return dist
         
 class TransformerProcess(nn.Module):
-    # WIP trying one that encodes a dist
-    # TODO autoregressive mask
+    """
+    A attempted simplification of an attentive neural process
+
+    Works on sequential data, has no deterministic encoder. Uses full transformer layer instead of custom attention. Has an autoregressive mask on the encoder and decoder.
+
+    """
     def __init__(self, x_size, y_size, hidden_size=64, latent_dim=32, nhead=8, nlayers=4, dropout=0, min_std=0.01):
         super().__init__()
         self._min_std = min_std
