@@ -162,6 +162,7 @@ class LatentEncoder(nn.Module):
         min_std=0.01,
         batchnorm=False,
         dropout=0,
+        nhead=8,
         attention_dropout=0,
         attention_layers=2,
     ):
@@ -178,6 +179,7 @@ class LatentEncoder(nn.Module):
         self._self_attention = Attention(
             hidden_dim,
             attention_layers,
+            n_heads=nhead,
             rep="identity",
             dropout=attention_dropout,
         )
@@ -218,6 +220,7 @@ class DeterministicEncoder(nn.Module):
         attention_layers=2,
         batchnorm=False,
         dropout=0,
+        nhead=8,
         attention_dropout=0,
     ):
         super().__init__()
@@ -232,12 +235,14 @@ class DeterministicEncoder(nn.Module):
         self._self_attention = Attention(
             hidden_dim,
             attention_layers,
+            n_heads=nhead,
             rep="identity",
             dropout=attention_dropout,
         )
         self._cross_attention = Attention(
             hidden_dim,
             x_dim=x_dim,
+            n_heads=nhead,
             attention_layers=attention_layers,
         )
 
@@ -325,6 +330,7 @@ class RANP(nn.Module):
         use_deterministic_path=True,
         min_std=0.01,  # To avoid collapse use a minimum standard deviation, should be much smaller than variation in labels
         dropout=0,
+        nhead=8,
         attention_dropout=0,
         batchnorm=False,
         attention_layers=2,
@@ -353,6 +359,7 @@ class RANP(nn.Module):
             n_encoder_layers=n_latent_encoder_layers,
             attention_layers=attention_layers,
             dropout=dropout,
+            nhead=nhead,
             attention_dropout=attention_dropout,
             batchnorm=batchnorm,
             min_std=min_std,
@@ -365,6 +372,7 @@ class RANP(nn.Module):
             n_d_encoder_layers=n_det_encoder_layers,
             attention_layers=attention_layers,
             dropout=dropout,
+            nhead=nhead,
             batchnorm=batchnorm,
             attention_dropout=attention_dropout,
         )
