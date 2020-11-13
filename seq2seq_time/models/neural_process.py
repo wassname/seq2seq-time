@@ -407,9 +407,11 @@ class RANP(nn.Module):
             y = torch.cat([past_y, future_y], 1)
             dist_post, log_var_post = self._latent_encoder(x, y)
 
-        if self.training:
-            z = dist_prior.rsample()
+        if self.training and (future_y is not None):
+            # USe posterior during training, is possible
+            z = dist_post.rsample()
         else:
+            # During eval use the prior, also take the most probable
             z = dist_prior.loc
         num_targets = future_x.size(1)
         z = z.unsqueeze(1).repeat(1, num_targets, 1)  # [B, T_target, H]
