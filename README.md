@@ -10,47 +10,47 @@ NOTE: This is a work in progress, with out final numbers...
 <img src="reports/figures/Seq2Seq for regression.png" />
 
 
-  
+To run some code start with [notebooks/05.5-mc-leaderboard.ipynb](notebooks/05.5-mc-leaderboard.ipynb)
+
 # Results
 
 
-NOTE: Draft numbers
-
-- [ ] TODO mean over N runs
-- [ ] TODO hyperparameter opt to make sure I'm comparing optimal hidden_size
-
-See [notebooks/05.5-mc-leaderboard.ipynb](notebooks/05.5-mc-leaderboard.ipynb)
-
 ## Negative Log Likelihood
 
-|                    |   GasSensor |   IMOSCurrentsVel |   AppliancesEnergyPrediction |   BejingPM25 |   MetroInterstateTraffic |   mean(e-e_baseline) |
-|:-------------------|------------:|------------------:|-----------------------------:|-------------:|-------------------------:|---------------------:|
-| RANP               |       -1.91 |              0.93 |                         1.25 |         1.39 |                    -0.36 |                -1.16 |
-| TransformerProcess |       -0.84 |              1.02 |                         1.17 |         1.43 |                    -0.33 |                -0.93 |
-| Transformer        |       -1.18 |              0.93 |                         1.8  |         1.31 |                    -0.37 |                -0.92 |
-| TCNSeq             |       -0.47 |              0.88 |                         1.1  |         1.28 |                    -0.15 |                -0.89 |
-| CrossAttention     |       -0.58 |              1.27 |                         1.24 |         1.45 |                    -0.34 |                -0.81 |
-| LSTMSeq2Seq        |        0    |              0.95 |                         1.2  |         1.28 |                    -0.29 |                -0.79 |
-| LSTM               |       -0.2  |              0.97 |                         1.34 |         1.29 |                    -0.05 |                -0.75 |
-| TransformerSeq2Seq |        0.69 |              1.49 |                         1.54 |         1.49 |                    -0.31 |                -0.43 |
-| InceptionTimeSeq   |       -2.07 |              1.31 |                         4.65 |         1.32 |                    -0.03 |                -0.38 |
-| BaselineMean       |        1.54 |              1.1  |                         1.41 |         1.59 |                     1.43 |                 0    |
+After trying 20+ differen't hidden sizes and layer combinations, here are the best values:
 
+| model              |   AppliancesEnergyPred |   BejingPM25 |   GasSensor |   IMOSCurrentsVel |   MetroInterstateTraffic |
+|:-------------------|-----------------------------:|-------------:|------------:|------------------:|-------------------------:|
+| BaselineLast       |                         1.48 |         1.55 |        1.97 |              0.89 |                     1.74 |
+| BaselineMean       |                         1.32 |         1.44 |        1.58 |              1.2  |                     1.41 |
+| CrossAttention     |                         1.55 |         1.41 |       -0.64 |              1.66 |                    -0.1  |
+| InceptionTimeSeq   |                         1.1  |         1.24 |       -2.1  |              0.85 |                    -0.16 |
+| LSTM               |                         1.17 |         1.27 |       -1.54 |              0.88 |                    -0.2  |
+| LSTMSeq2Seq        |                         1.2  |         1.29 |       -1.49 |              0.89 |                    -0.2  |
+| RANP               |                         1.28 |         1.43 |       -2.13 |              1.04 |                    -0.29 |
+| TCNSeq             |                         1.08 |         1.24 |       -1.74 |              0.82 |                    -0.32 |
+| Transformer        |                         1.2  |         1.3  |       -1.96 |              0.88 |                    -0.25 |
+| TransformerProcess |                         1.16 |         1.4  |       -0.88 |              1.39 |                    -0.3  |
+| TransformerSeq2Seq |                         1.17 |         2.39 |        0.34 |              1.27 |                    -0.19 |
 
-## Model sizes
+RANP is a Recurrent attentive neural process. Implementation details and hyperparameters can be found by reading the code starting with [notebooks/07.1-mc-optuna.ipynb](notebooks/07.1-mc-optuna.ipynb)
 
-|                    | Total params   | Trainable params   |   Non-trainable params | Mult-Adds   |
-|:-------------------|:---------------|:-------------------|-----------------------:|:------------|
-| BaselineMean       | 1.0            | 1.0                |                      0 | 0.0         |
-| Transformer        | 32.562k        | 32.562k            |                      0 | 31.088k     |
-| TransformerProcess | 72.722k        | 72.722k            |                      0 | 101.088k    |
-| TCNSeq             | 6.258k         | 6.258k             |                      0 | 1.84272M    |
-| RANP               | 21.626k        | 21.626k            |                      0 | 24.256k     |
-| TransformerSeq2Seq | 71.794k        | 71.794k            |                      0 | 68.368k     |
-| LSTM               | 6.05k          | 6.05k              |                      0 | 5.664k      |
-| LSTMSeq2Seq        | 12.002k        | 12.002k            |                      0 | 11.232k     |
-| CrossAttention     | 44.642k        | 44.642k            |                      0 | 42.64k      |
-| InceptionTimeSeq   | 46.346k        | 46.346k            |                      0 | 6.543744M   |
+If we scale it so baseline last is 0, and the best performance is -1, we can compare all datasets (lower is better)
+
+mean of scaled performance over all datasets
+| model              |     0 |
+|:-------------------|------:|
+| TCNSeq             | -0.98 |
+| InceptionTimeSeq   | -0.89 |
+| LSTM               | -0.72 |
+| Transformer        | -0.7  |
+| LSTMSeq2Seq        | -0.65 |
+| RANP               | -0.13 |
+| BaselineLast       |  0    |
+| BaselineMean       |  0.73 |
+| TransformerProcess |  0.91 |
+| TransformerSeq2Seq |  1.25 |
+| CrossAttention     |  1.91 |
 
 ## Datasets
 
